@@ -1,0 +1,28 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: astro-engine
+  config:
+    # Optional local secrets: engine/.env (KEY=VALUE lines, git-ignored). Real env vars still win.
+    import: optional:file:./.env[.properties]
+  cache:
+    type: simple          # in-memory; switch to caffeine/redis in production
+  jackson:
+    default-property-inclusion: non_null
+
+astro:
+  cors:
+    origins: http://localhost:3000,http://localhost:3001
+  llm:
+    provider: ${ASTRO_LLM_PROVIDER:anthropic}   # anthropic | openrouter
+    api-key: ${ASTRO_LLM_API_KEY:}             # empty = template narrator only
+    model: ${ASTRO_LLM_MODEL:}                 # empty = per-provider default (see LlmProperties)
+    base-url: ${ASTRO_LLM_BASE_URL:}           # empty = per-provider default
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
