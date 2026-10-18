@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -114,10 +115,15 @@ public class ChineseService {
         List<String> yi = lunar.getDayYi();
         List<String> ji = lunar.getDayJi();
 
+        // Different activities can point to the same category (e.g. 安床 suitable and 嫁娶 to avoid both
+        // touch LOVE). Resolve each category by majority so a day never reads as both favorable and
+        // unfavorable for the same area; ties leave the category neutral.
+        Map<Category, Integer> votes = new EnumMap<>(Category.class);
+        for (String s : yi) for (Category c : ACTIVITY_CATEGORIES.getOrDefault(s, Set.of())) votes.merge(c, 1, Integer::sum);
+        for (String s : ji) for (Category c : ACTIVITY_CATEGORIES.getOrDefault(s, Set.of())) votes.merge(c, -1, Integer::sum);
         Set<Category> favorable = EnumSet.noneOf(Category.class);
         Set<Category> unfavorable = EnumSet.noneOf(Category.class);
-        for (String s : yi) favorable.addAll(ACTIVITY_CATEGORIES.getOrDefault(s, Set.of()));
-        for (String s : ji) unfavorable.addAll(ACTIVITY_CATEGORIES.getOrDefault(s, Set.of()));
+        votes.forEach((c, v) -> { if (v > 0) favorable.add(c); else if (v < 0) unfavorable.add(c); });
 
         String dayZhi = lunar.getDayZhi();
         boolean auspicious = "吉".equals(lunar.getDayTianShenLuck());

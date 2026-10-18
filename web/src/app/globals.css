@@ -122,3 +122,15 @@ table.plain td { padding: 6px 4px; border-bottom: 1px solid rgba(238, 230, 210, 
 @media (prefers-reduced-motion: no-preference) {
   .dial circle.arc { transition: stroke-dasharray 600ms ease; }
 }
+
+/* Profile tab */
+.profile { display: grid; gap: 14px; }
+.pcard { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.pcard h3 { font-family: var(--serif); font-weight: 500; font-size: 20px; margin: 0 0 10px; color: var(--gold-soft); }
+.pcard p { margin: 8px 0; font-size: 14px; line-height: 1.55; }
+.phead { display: flex; gap: 14px; align-items: center; margin-bottom: 6px; }
+.pglyph { font-size: 38px; line-height: 1; }
+.ptitle { font-family: var(--serif); font-size: 22px; margin-bottom: 6px; }
+.lucky { display: flex; flex-wrap: wrap; gap: 8px; }
+.lucky span { font-family: var(--serif); font-size: 20px; width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--gold);
+  display: inline-flex; align-items: center; justify-content: center; color: var(--gold); }

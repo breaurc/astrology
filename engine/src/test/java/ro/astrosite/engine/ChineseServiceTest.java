@@ -5,6 +5,7 @@ import ro.astrosite.engine.astro.BirthData;
 import ro.astrosite.engine.chinese.ChineseProfile;
 import ro.astrosite.engine.chinese.ChineseService;
 import ro.astrosite.engine.chinese.DayAlmanac;
+import ro.astrosite.engine.scoring.Category;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -35,5 +36,17 @@ class ChineseServiceTest {
         assertNotNull(day.dayBranch());
         assertNotNull(day.suitable());
         assertNotNull(day.relationToNatal());
+    }
+
+    @Test
+    void almanacNeverMarksACategoryBothFavorableAndUnfavorable() {
+        // 2026-10-22 lists bed-placement as suitable and marriage as to-avoid; both map to LOVE.
+        DayAlmanac day = service.almanac(LocalDate.of(2026, 10, 22), null);
+        for (Category c : day.favorable()) assertFalse(day.unfavorable().contains(c), c + " is in both sets");
+        // Sweep a year so the invariant holds beyond one hand-picked date.
+        for (LocalDate d = LocalDate.of(2026, 1, 1); d.getYear() == 2026; d = d.plusDays(1)) {
+            DayAlmanac a = service.almanac(d, null);
+            for (Category c : a.favorable()) assertFalse(a.unfavorable().contains(c), d + ": " + c + " is in both sets");
+        }
     }
 }

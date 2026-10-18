@@ -59,6 +59,9 @@ public class DayScoreService {
         context.put("branchRelation", almanac.relationToNatal().name());
         context.put("personalDay", String.valueOf(numerology.personalDay()));
         context.put("mercuryRetrograde", String.valueOf(transit.retrograde().get(Planet.MERCURY)));
+        context.put("retrogrades", transit.retrograde().entrySet().stream()
+                .filter(Map.Entry::getValue).map(e -> e.getKey().name())
+                .collect(java.util.stream.Collectors.joining(",")));
 
         return new DayScores(date, ScoringRules.aggregate(factors), factors, context);
     }

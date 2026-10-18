@@ -9,8 +9,10 @@ import {
 } from "@/lib/i18n";
 import ScoreDial from "./ScoreDial";
 import ChartWheel from "./ChartWheel";
+import ProfilePanel from "./ProfilePanel";
+import { PILLAR_NAMES, pillarLabel, stemLabel } from "@/lib/bazi";
 
-type Tab = "today" | "chart" | "chinese" | "numerology" | "best";
+type Tab = "today" | "profile" | "chart" | "chinese" | "numerology" | "best";
 
 function todayIso() {
   const d = new Date();
@@ -61,6 +63,13 @@ export default function Demo({ locale }: { locale: Locale }) {
       try {
         setError(null);
         if (tab === "today") setDay(await api.day(birth, askDate, locale));
+        if (tab === "profile") {
+          const [c, ch, n, dy] = await Promise.all([
+            api.chart(birth), api.chinese(birth, askDate), api.numerology(birth, askDate), api.day(birth, askDate, locale),
+          ]);
+          if (cancelled) return;
+          setChart(c); setChinese(ch); setNumerology(n); setDay(dy);
+        }
         if (tab === "chart") setChart(await api.chart(birth));
         if (tab === "chinese") setChinese(await api.chinese(birth, askDate));
         if (tab === "numerology") setNumerology(await api.numerology(birth, askDate));
@@ -235,6 +244,12 @@ export default function Demo({ locale }: { locale: Locale }) {
               ) : <p className="empty">…</p>
             )}
 
+            {tab === "profile" && (
+              chart && chinese && numerology
+                ? <ProfilePanel locale={locale} chart={chart} chinese={chinese} numerology={numerology} day={day} date={askDate} />
+                : <p className="empty">…</p>
+            )}
+
             {tab === "chart" && (
               chart ? (
                 <div className="chart">
@@ -269,8 +284,13 @@ export default function Demo({ locale }: { locale: Locale }) {
                   <div className="dl" style={{ marginBottom: 18 }}>
                     <div><span>{d.animal}</span><b>{ANIMALS[locale][chinese.profile.animal]}</b></div>
                     <div><span>{d.element}</span><b>{ELEMENTS[locale][chinese.profile.yinYang]} {ELEMENTS[locale][chinese.profile.element]}</b></div>
-                    <div><span>{d.dayMaster}</span><b>{chinese.profile.dayMaster}</b></div>
-                    <div><span>{d.pillars}</span><b style={{ fontSize: 20 }}>{chinese.profile.pillars.filter(Boolean).join(" · ")}</b></div>
+                    <div><span>{d.dayMaster}</span><b>{stemLabel(chinese.profile.dayMaster, locale)} <small className="muted">{chinese.profile.dayMaster}</small></b></div>
+                  </div>
+                  <p className="muted" style={{ margin: "0 0 6px" }}>{d.pillars}</p>
+                  <div className="dl" style={{ marginBottom: 18 }}>
+                    {chinese.profile.pillars.map((pl, i) => pl && (
+                      <div key={i}><span>{PILLAR_NAMES[locale][i]}</span><b style={{ fontSize: 18 }}>{pillarLabel(pl, locale)} <small className="muted">{pl}</small></b></div>
+                    ))}
                   </div>
                   <p className="muted" style={{ marginTop: 0 }}>
                     {d.relation}: <b>{ANIMALS[locale][chinese.today.dayAnimal]}</b> — {RELATIONS[locale][chinese.today.relationToNatal]}
