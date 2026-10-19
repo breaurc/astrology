@@ -5,6 +5,7 @@ import { safeNextClient } from "./AccountNav";
 import type { Locale } from "@/lib/i18n";
 import { ta } from "@/lib/i18n-account";
 import AuthPanel from "./AuthPanel";
+import SiteFooter from "../SiteFooter";
 
 export default function LoginView({ locale }: { locale: Locale }) {
   const a = ta(locale).auth;
@@ -27,6 +28,7 @@ export default function LoginView({ locale }: { locale: Locale }) {
           onAuthenticated={() => { window.location.href = next; }} />
         <p className="muted center">{a.noProfile} <a href={`/${locale}/start`}>{a.startHere}</a></p>
       </section>
+      <SiteFooter locale={locale} />
     </main>
   );
 }

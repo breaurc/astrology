@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { BirthProfile, PublicUser } from "../profile";
 import { dataDir } from "./secret";
+import { INACTIVITY_MONTHS, POLICY_VERSION } from "../privacy";
 
 /**
  * User store. This implementation keeps everything in one JSON file (web/.data/users.json), which is enough for
@@ -19,7 +20,9 @@ export interface UserRecord {
   passwordHash?: string;
   identities: Identity[];
   createdAt: string;
-  consentAt?: string;       // explicit consent to store birth data (GDPR art. 6/7)
+  consentAt?: string;       // explicit consent to store birth data (GDPR art. 6(1)(a), 7)
+  consentVersion?: string;  // privacy notice version that was accepted
+  lastSeenAt?: string;      // used to delete inactive accounts
   profile?: BirthProfile;
 }
 
@@ -46,10 +49,28 @@ function save(db: DB) {
   renameSync(tmp, file());
 }
 
+let lastPurge = 0;
+
+/** Keeps only accounts used within the last INACTIVITY_MONTHS. */
+export function activeOnly(users: UserRecord[], now = new Date()): UserRecord[] {
+  const cutoff = new Date(now);
+  cutoff.setMonth(cutoff.getMonth() - INACTIVITY_MONTHS);
+  const c = cutoff.toISOString();
+  return users.filter((u) => (u.lastSeenAt ?? u.createdAt) >= c);
+}
+
+/** Deletes inactive accounts, checked at most once an hour. */
+function purgeInactive(db: DB) {
+  if (Date.now() - lastPurge < 3600_000) return;
+  lastPurge = Date.now();
+  db.users = activeOnly(db.users);
+}
+
 /** Serializes read-modify-write cycles so concurrent requests don't overwrite each other. */
 function tx<T>(fn: (db: DB) => T): Promise<T> {
   const run = queue.then(() => {
     const db = load();
+    purgeInactive(db);
     const out = fn(db);
     save(db);
     return out;
@@ -68,6 +89,7 @@ export function toPublic(u: UserRecord): PublicUser {
     providers: [...(u.passwordHash ? ["password"] : []), ...u.identities.map((i) => i.provider)],
     createdAt: u.createdAt,
     consentAt: u.consentAt,
+    consentVersion: u.consentVersion,
   };
 }
 
@@ -89,8 +111,8 @@ export const store = {
       const e = normalizeEmail(email);
       if (db.users.some((u) => u.email === e)) return null;
       const now = new Date().toISOString();
-      const u: UserRecord = { id: randomUUID(), email: e, name, passwordHash, identities: [], createdAt: now,
-        consentAt: consent ? now : undefined };
+      const u: UserRecord = { id: randomUUID(), email: e, name, passwordHash, identities: [], createdAt: now, lastSeenAt: now,
+        consentAt: consent ? now : undefined, consentVersion: consent ? POLICY_VERSION : undefined };
       db.users.push(u);
       return u;
     });
@@ -118,7 +140,8 @@ export const store = {
         db.users.push(u);
       }
       if (!u.name && info.name) u.name = info.name;
-      if (consent && !u.consentAt) u.consentAt = now;
+      u.lastSeenAt = now;
+      if (consent && !u.consentAt) { u.consentAt = now; u.consentVersion = POLICY_VERSION; }
       return u;
     });
   },
@@ -127,10 +150,31 @@ export const store = {
     return tx((db) => {
       const u = db.users.find((x) => x.id === id);
       if (!u) return null;
-      if (consent && !u.consentAt) u.consentAt = new Date().toISOString();
+      if (consent && !u.consentAt) { u.consentAt = new Date().toISOString(); u.consentVersion = POLICY_VERSION; }
       if (!u.consentAt) return "consent" as const;
       u.profile = { ...profile, updatedAt: new Date().toISOString() };
       if (!u.name && profile.displayName) u.name = profile.displayName;
+      return u;
+    });
+  },
+
+  /** Marks the account as used (login / visit); at most one write per day per user. */
+  touch(id: string) {
+    return tx((db) => {
+      const u = db.users.find((x) => x.id === id);
+      const today = new Date().toISOString().slice(0, 10);
+      if (u && (u.lastSeenAt ?? "").slice(0, 10) !== today) u.lastSeenAt = new Date().toISOString();
+    });
+  },
+
+  /** Withdraws consent: deletes the birth profile and the consent record, keeps the login. */
+  withdraw(id: string) {
+    return tx((db) => {
+      const u = db.users.find((x) => x.id === id);
+      if (!u) return null;
+      delete u.profile;
+      delete u.consentAt;
+      delete u.consentVersion;
       return u;
     });
   },

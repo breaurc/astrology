@@ -9,6 +9,8 @@ import { FOCUS_AREAS, isRealDate, lifePath, type BirthProfile, type FocusArea, t
 import AuthPanel from "./AuthPanel";
 import CosmicCard, { ANIMAL_GLYPHS, glyph, todayIso, useReading } from "./CosmicCard";
 import PlaceSearch from "./PlaceSearch";
+import ConsentText from "./ConsentText";
+import SiteFooter from "../SiteFooter";
 
 const STEPS = ["name", "date", "time", "place", "about", "reveal"] as const;
 type Step = (typeof STEPS)[number];
@@ -102,6 +104,7 @@ export default function Onboarding({ locale }: { locale: Locale }) {
           </div>
         </form>
       )}
+      <SiteFooter locale={locale} />
     </main>
   );
 }
@@ -349,7 +352,7 @@ function Reveal({ locale, draft, session, meUrl, onEdit }: {
             {needsConsent && (
               <label className="consent">
                 <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                <span>{a.consent}</span>
+                <ConsentText locale={locale} />
               </label>
             )}
             {saveError && <div className="alert" role="alert">{saveError}</div>}
@@ -366,7 +369,12 @@ function Reveal({ locale, draft, session, meUrl, onEdit }: {
           </>
         )}
       </div>
-      {!signedIn && <a className="link center block" href={`/${locale}`}>{r.guest} →</a>}
+      {!signedIn && (
+        <>
+          <a className="link center block" href={`/${locale}`}>{r.guest} →</a>
+          <p className="muted center small-note">{r.guestNote}</p>
+        </>
+      )}
     </section>
   );
 }

@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 process.env.ASTRO_DATA_DIR = mkdtempSync(join(tmpdir(), "astro-test-"));
+process.env.SOCIAL_LOGIN = "on";
 process.env.GOOGLE_CLIENT_ID = "g-id";
 process.env.GOOGLE_CLIENT_SECRET = "g-secret";
 process.env.FACEBOOK_CLIENT_ID = "f-id";
@@ -15,6 +16,8 @@ process.env.FACEBOOK_CLIENT_SECRET = "f-secret";
 
 const BASE = "http://localhost:3000";
 let A: typeof import("../src/lib/server/auth");
+import { POLICY_VERSION } from "../src/lib/privacy";
+import { activeOnly, type UserRecord } from "../src/lib/server/store";
 
 before(async () => {
   A = await import("../src/lib/server/auth");
@@ -57,6 +60,7 @@ test("register → session → save profile → read back", async () => {
   assert.equal(s.user.email, "ana@example.com");
   assert.deepEqual(s.user.providers, ["password"]);
   assert.ok(s.user.consentAt);
+  assert.equal(s.user.consentVersion, POLICY_VERSION);
   assert.equal(s.profile, null);
 
   const put = await A.putProfile(req("/api/profile", { method: "PUT", cookie: c, body: JSON.stringify({ profile: PROFILE }) }));
@@ -238,4 +242,38 @@ test("export omits the password hash; delete erases the account and clears the c
   assert.equal(s.user, null);
   const relogin = await A.login(req("/api/auth/login", { method: "POST", body: JSON.stringify({ email: "ana@example.com", password: "correct horse" }) }));
   assert.equal(relogin.status, 401);
+});
+
+test("social login is hidden unless SOCIAL_LOGIN=on", async () => {
+  process.env.FACEBOOK_CLIENT_ID = "f-id";
+  delete process.env.SOCIAL_LOGIN;
+  assert.deepEqual(await A.providers().json(), { google: false, facebook: false });
+  const r = await A.oauthStart(req("/api/auth/google/start?next=/ro/me"), "google");
+  assert.equal(r.headers.get("location"), "http://localhost:3000/ro/login?error=provider");
+  process.env.SOCIAL_LOGIN = "on";
+  assert.deepEqual(await A.providers().json(), { google: true, facebook: true });
+});
+
+test("withdrawing consent deletes birth data but keeps the login", async () => {
+  const r = await A.register(req("/api/auth/register", { method: "POST",
+    body: JSON.stringify({ email: "w@example.com", password: "password123", consent: true }) }));
+  const c = cookies(r);
+  await A.putProfile(req("/api/profile", { method: "PUT", cookie: c, body: JSON.stringify({ profile: PROFILE }) }));
+  const w = await (await A.deleteProfile(req("/api/profile", { method: "DELETE", cookie: c }))).json();
+  assert.equal(w.profile, null);
+  assert.equal(w.user.consentAt, undefined);
+  assert.equal(w.user.email, "w@example.com");
+  // saving again requires fresh consent
+  const again = await A.putProfile(req("/api/profile", { method: "PUT", cookie: c, body: JSON.stringify({ profile: PROFILE }) }));
+  assert.equal(again.status, 400);
+  assert.equal((await again.json()).error, "consent_required");
+  const ok = await A.putProfile(req("/api/profile", { method: "PUT", cookie: c, body: JSON.stringify({ profile: PROFILE, consent: true }) }));
+  assert.equal(ok.status, 200);
+});
+
+test("accounts inactive for 12 months are dropped", () => {
+  const mk = (id: string, lastSeenAt: string): UserRecord => ({ id, identities: [], createdAt: "2020-01-01T00:00:00Z", lastSeenAt });
+  const now = new Date("2026-10-19T12:00:00Z");
+  const kept = activeOnly([mk("old", "2025-10-01T00:00:00Z"), mk("recent", "2025-11-01T00:00:00Z")], now).map((u) => u.id);
+  assert.deepEqual(kept, ["recent"]);
 });

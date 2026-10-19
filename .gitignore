@@ -8,3 +8,6 @@ web/next-env.d.ts
 .env
 web/.data/
 .env*.local
+deploy/.env
+deploy/web.env
+deploy/engine.env

@@ -1,6 +1,15 @@
 import type { Metadata } from "next";
+import { Cormorant_Garamond, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
 import "./account.css";
+
+// next/font downloads the fonts at build time and serves them from this site,
+// so visitors' browsers never contact Google (no IP transfer to Google Fonts).
+const serif = Cormorant_Garamond({
+  subsets: ["latin", "latin-ext"], weight: ["400", "500", "600"], style: ["normal", "italic"],
+  display: "swap", variable: "--font-serif",
+});
+const sans = Source_Sans_3({ subsets: ["latin", "latin-ext"], weight: ["400", "500", "600"], display: "swap", variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: "Astro — is today a good day?",
@@ -9,15 +18,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=Source+Sans+3:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" className={`${serif.variable} ${sans.variable}`}>
       <body>{children}</body>
     </html>
   );

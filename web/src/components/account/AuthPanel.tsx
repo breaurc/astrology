@@ -4,7 +4,8 @@ import { useEffect, useId, useState } from "react";
 import { account, AccountError } from "@/lib/account";
 import type { SessionInfo } from "@/lib/profile";
 import type { Locale } from "@/lib/i18n";
-import { fill, ta } from "@/lib/i18n-account";
+import { ta } from "@/lib/i18n-account";
+import ConsentText from "./ConsentText";
 
 interface Props {
   locale: Locale;
@@ -16,8 +17,6 @@ interface Props {
   onAuthenticated: (s: SessionInfo) => void | Promise<void>;
   initialError?: string | null;
 }
-
-const DEV = process.env.NODE_ENV !== "production";
 
 export default function AuthPanel({ locale, next, initialMode = "register", defaultName, onAuthenticated, initialError }: Props) {
   const a = ta(locale).auth;
@@ -72,34 +71,30 @@ export default function AuthPanel({ locale, next, initialMode = "register", defa
     }
   }
 
+  // Social buttons appear only when the server enables them (SOCIAL_LOGIN=on + provider keys).
   const providerButton = (p: "google" | "facebook") => {
-    const enabled = providers?.[p];
-    if (!enabled && !DEV) return null;
+    if (!providers?.[p]) return null;
     return (
-      <button key={p} type="button" className={`social ${p}`} onClick={() => oauth(p)} disabled={!enabled || busy}
-        title={!enabled ? fill(a.notConfigured, { var: p === "google" ? "GOOGLE_CLIENT_ID" : "FACEBOOK_CLIENT_ID" }) : undefined}>
+      <button key={p} type="button" className={`social ${p}`} onClick={() => oauth(p)} disabled={busy}>
         {p === "google" ? <GoogleMark /> : <FacebookMark />}
         <span>{p === "google" ? a.google : a.facebook}</span>
       </button>
     );
   };
-  const anySocial = DEV || providers?.google || providers?.facebook;
+  const anySocial = !!(providers?.google || providers?.facebook);
 
   return (
     <div className="auth">
       {register && (
         <label className={`consent${fields.includes("consent") ? " invalid" : ""}`}>
           <input type="checkbox" checked={consent} onChange={(e) => { setConsent(e.target.checked); if (e.target.checked && error === "consent") setError(null); }} />
-          <span>{a.consent}</span>
+          <ConsentText locale={locale} />
         </label>
       )}
 
       {anySocial && (
         <>
           <div className="socials">{providerButton("google")}{providerButton("facebook")}</div>
-          {DEV && providers && (!providers.google || !providers.facebook) && (
-            <p className="dev-note">{fill(a.notConfigured, { var: [!providers.google && "GOOGLE_CLIENT_ID", !providers.facebook && "FACEBOOK_CLIENT_ID"].filter(Boolean).join(" / ") })}</p>
-          )}
           <div className="or"><span>{a.or}</span></div>
         </>
       )}

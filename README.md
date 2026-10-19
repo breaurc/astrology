@@ -39,6 +39,10 @@ set ASTRO_LLM_MODEL=deepseek/deepseek-v4-flash
 
 Instead of exporting variables, copy `engine/.env.example` to `engine/.env` (git-ignored) and fill it in; Spring imports it at startup, so restart the engine after editing it. Real environment variables take precedence over the file.
 
+## Deploy
+
+Public demo on a free Oracle Cloud server with Docker Compose + Caddy (HTTPS): see **[deploy/DEPLOY.md](deploy/DEPLOY.md)**.
+
 ## Accounts & onboarding
 
 User-facing flow (RO/EN):
@@ -61,7 +65,16 @@ How it works (no extra npm dependencies):
 | Geocoding | Open-Meteo geocoder (GeoNames data, free, no key), falls back to the demo place list offline |
 | Validation | `lib/profile.ts`, shared by browser and server |
 
-Setup: copy `web/.env.example` to `web/.env.local`. Email sign-up works with no configuration; the Google/Facebook buttons stay disabled until their client ID + secret are set (redirect URIs are listed in the example file).
+Setup: copy `web/.env.example` to `web/.env.local`. Email sign-up works with no configuration. Google/Facebook sign-in is hidden unless `SOCIAL_LOGIN=on` **and** their client ID + secret are set (redirect URIs are listed in the example file).
+
+### Privacy / GDPR
+
+- **Notice**: `/ro/privacy`, `/en/privacy` (`components/PrivacyNotice.tsx`): controller, data, purposes and legal bases, recipients, retention, rights, ANSPDCP, cookies, minimum age 16. Fill `PRIVACY_CONTROLLER`, `PRIVACY_EMAIL`, `PRIVACY_HOSTING` (and `PRIVACY_AI` if the engine uses an LLM); until then the page shows a red reminder. Bump `POLICY_VERSION` in `lib/privacy.ts` when the notice changes.
+- **Consent**: unticked checkbox linking to the notice, incl. "at least 16"; the date and notice version are stored with the account.
+- **Rights, self-service** on `/me#data`: edit, download all data (JSON), delete birth data (withdraws consent, keeps the login), delete account.
+- **Retention**: accounts unused for 12 months are deleted automatically; the engine clears its in-memory caches (which hold birth data and questions) every hour (`config/CacheExpiry.java`, `astro.cache.clear-ms`).
+- **No third-party calls from the browser**: fonts are self-hosted via `next/font`; no analytics, so no cookie banner (only strictly necessary cookies).
+- Footer on every page: demo / entertainment notice + privacy link.
 
 Tests: `cd web && npx tsx --test tests/auth.test.ts` (register/login/lockout, sessions, CSRF, profile validation, OAuth round-trips with mocked Google/Facebook, account linking, export, delete).
 

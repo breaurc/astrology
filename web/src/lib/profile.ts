@@ -37,6 +37,7 @@ export interface PublicUser {
   providers: string[];    // "password" | "google" | "facebook"
   createdAt: string;
   consentAt?: string;
+  consentVersion?: string;
 }
 
 export interface SessionInfo {

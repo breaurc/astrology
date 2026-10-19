@@ -12,6 +12,7 @@ import ChartWheel from "./ChartWheel";
 import ProfilePanel from "./ProfilePanel";
 import { PILLAR_NAMES, pillarLabel, stemLabel } from "@/lib/bazi";
 import AccountNav from "./account/AccountNav";
+import SiteFooter from "./SiteFooter";
 import { isComplete, loadDraft } from "@/lib/account";
 import type { BirthProfile, Place, SessionInfo } from "@/lib/profile";
 
@@ -377,9 +378,9 @@ export default function Demo({ locale }: { locale: Locale }) {
               </>
             )}
           </div>
-          <p className="disclaimer">{d.disclaimer}</p>
         </section>
       </div>
+      <SiteFooter locale={locale} />
     </main>
   );
 }

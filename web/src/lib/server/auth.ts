@@ -94,7 +94,9 @@ function clearSession(req: Request): string {
 export async function currentUser(req: Request): Promise<UserRecord | null> {
   const s = unsign<Session>(readCookie(req, SESSION_COOKIE));
   if (!s || typeof s.uid !== "string" || s.exp < Date.now()) return null;
-  return (await store.byId(s.uid)) ?? null;
+  const u = (await store.byId(s.uid)) ?? null;
+  if (u && (u.lastSeenAt ?? "").slice(0, 10) !== new Date().toISOString().slice(0, 10)) await store.touch(u.id);
+  return u;
 }
 
 function sessionInfo(u: UserRecord | null): SessionInfo {
@@ -147,6 +149,7 @@ export async function login(req: Request): Promise<Response> {
     return json({ error: "invalid_credentials" }, 401);
   }
   failures.delete(key);
+  await store.touch(user.id);
   return json(sessionInfo(user), 200, { "Set-Cookie": sessionCookie(req, user.id) });
 }
 
@@ -172,7 +175,13 @@ interface ProviderConfig {
   fetchProfile(code: string, redirectUri: string, verifier: string): Promise<{ subject: string; email?: string; emailVerified: boolean; name?: string }>;
 }
 
+/** Google / Facebook sign-in is hidden unless SOCIAL_LOGIN=on (and the provider's keys are set). */
+function socialEnabled(): boolean {
+  return process.env.SOCIAL_LOGIN === "on";
+}
+
 function provider(id: string): ProviderConfig | null {
+  if (!socialEnabled()) return null;
   if (id === "google" && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -295,6 +304,15 @@ export async function putProfile(req: Request): Promise<Response> {
   if (saved === "consent") return json({ error: "consent_required" }, 400);
   if (!saved) return json({ error: "unauthorized" }, 401);
   return json(sessionInfo(saved));
+}
+
+/** DELETE /api/profile → withdraws consent: erases the birth data, keeps the account (GDPR art. 7(3), 17). */
+export async function deleteProfile(req: Request): Promise<Response> {
+  if (!sameOrigin(req)) return json({ error: "forbidden" }, 403);
+  const u = await currentUser(req);
+  if (!u) return json({ error: "unauthorized" }, 401);
+  const after = await store.withdraw(u.id);
+  return json(sessionInfo(after));
 }
 
 /** GET /api/account → everything we store about the person, as a download (GDPR art. 15/20). */

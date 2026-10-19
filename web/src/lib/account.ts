@@ -30,6 +30,7 @@ export const account = {
   logout: () => call<{ ok: true }>("/api/auth/logout", { method: "POST" }),
   saveProfile: (profile: BirthProfile, consent = false) =>
     call<SessionInfo>("/api/profile", { method: "PUT", body: JSON.stringify({ profile, consent }) }),
+  deleteProfile: () => call<SessionInfo>("/api/profile", { method: "DELETE" }),
   deleteAccount: () => call<{ ok: true }>("/api/account", { method: "DELETE" }),
   oauthUrl: (provider: "google" | "facebook", next: string, consent: boolean) =>
     `/api/auth/${provider}/start?${new URLSearchParams({ next, consent: consent ? "1" : "0" })}`,

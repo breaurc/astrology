@@ -8,6 +8,8 @@ import { FOCUS_AREAS, isRealDate, type BirthProfile, type FocusArea, type Gender
 import ScoreDial from "../ScoreDial";
 import CosmicCard, { useReading } from "./CosmicCard";
 import PlaceSearch from "./PlaceSearch";
+import ConsentText from "./ConsentText";
+import SiteFooter from "../SiteFooter";
 
 /** Signed-in home: today's score, cosmic ID, the stored birth data (editable) and account / GDPR controls. */
 export default function MyProfile({ locale }: { locale: Locale }) {
@@ -67,7 +69,8 @@ export default function MyProfile({ locale }: { locale: Locale }) {
         </section>
       )}
 
-      <AccountBox locale={locale} session={s} />
+      <AccountBox locale={locale} session={s} onChange={setS} />
+      <SiteFooter locale={locale} />
     </main>
   );
 }
@@ -248,7 +251,7 @@ function ConsentToSave({ locale, draft, onSaved }: { locale: Locale; draft: Birt
       <p className="muted">{draft.place.label} · {draft.date}{draft.time ? ` · ${draft.time}` : ""}</p>
       <label className="consent">
         <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-        <span>{a.consent}</span>
+        <ConsentText locale={locale} />
       </label>
       <button className="btn" disabled={!consent || busy} onClick={async () => {
         setBusy(true);
@@ -258,19 +261,30 @@ function ConsentToSave({ locale, draft, onSaved }: { locale: Locale; draft: Birt
   );
 }
 
-function AccountBox({ locale, session }: { locale: Locale; session: SessionInfo }) {
+function AccountBox({ locale, session, onChange }: { locale: Locale; session: SessionInfo; onChange: (s: SessionInfo) => void }) {
   const m = ta(locale).me;
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useState<null | "profile" | "account">(null);
   const [busy, setBusy] = useState(false);
   const u = session.user!;
-  const fmt = (iso?: string) => iso ? new Intl.DateTimeFormat(locale === "ro" ? "ro-RO" : "en-GB", { dateStyle: "long" }).format(new Date(iso)) : "—";
+  const fmt = (iso?: string) => iso ? new Intl.DateTimeFormat(locale === "ro" ? "ro-RO" : "en-GB", { dateStyle: "long" }).format(new Date(iso)) : m.noConsent;
 
   async function signOut() {
     await account.logout().catch(() => undefined);
     window.location.href = `/${locale}`;
   }
 
-  async function del() {
+  async function deleteProfile() {
+    setBusy(true);
+    try {
+      onChange(await account.deleteProfile());
+      clearDraft();
+      setConfirm(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteAccount() {
     setBusy(true);
     try {
       await account.deleteAccount();
@@ -282,28 +296,46 @@ function AccountBox({ locale, session }: { locale: Locale; session: SessionInfo 
   }
 
   return (
-    <section className="card account-box">
-      <h2>{m.accountTitle}</h2>
-      <dl className="facts">
-        {u.email && <div><dt>Email</dt><dd>{u.email}</dd></div>}
-        <div><dt>{m.signedInWith}</dt><dd>{u.providers.map((p) => m.providers[p] ?? p).join(", ")}</dd></div>
-        <div><dt>{m.memberSince}</dt><dd>{fmt(u.createdAt)}</dd></div>
-        <div><dt>{m.consentAt}</dt><dd>{fmt(u.consentAt)}</dd></div>
-      </dl>
-      <div className="actions">
-        <a className="btn ghost" href="/api/account" download>{m.download}</a>
-        <button className="btn ghost" onClick={signOut}>{m.signOut}</button>
-        {!confirm && <button className="btn danger-ghost" onClick={() => setConfirm(true)}>{m.delete}</button>}
-      </div>
-      {confirm && (
-        <div className="confirm" role="alertdialog" aria-label={m.delete}>
-          <p>{m.deleteConfirm}</p>
-          <div className="actions">
-            <button className="btn danger" disabled={busy} onClick={del}>{m.deleteYes}</button>
-            <button className="btn ghost" onClick={() => setConfirm(false)}>{m.cancel}</button>
-          </div>
+    <>
+      <section className="card account-box">
+        <h2>{m.accountTitle}</h2>
+        <dl className="facts">
+          {u.email && <div><dt>Email</dt><dd>{u.email}</dd></div>}
+          <div><dt>{m.signedInWith}</dt><dd>{u.providers.map((p) => m.providers[p] ?? p).join(", ")}</dd></div>
+          <div><dt>{m.memberSince}</dt><dd>{fmt(u.createdAt)}</dd></div>
+        </dl>
+        <div className="actions">
+          <button className="btn ghost" onClick={signOut}>{m.signOut}</button>
         </div>
-      )}
-    </section>
+      </section>
+
+      <section className="card account-box" id="data">
+        <h2>{m.privacyTitle}</h2>
+        <dl className="facts">
+          <div className="wide"><dt>{m.consentAt}</dt>
+            <dd>{fmt(u.consentAt)}{u.consentVersion && <small className="muted"> · {m.consentVersion} {u.consentVersion}</small>}</dd></div>
+        </dl>
+        <div className="actions">
+          <a className="btn ghost" href="/api/account" download>{m.download}</a>
+          {session.profile && confirm !== "profile" && (
+            <button className="btn danger-ghost" onClick={() => setConfirm("profile")}>{m.deleteBirth}</button>
+          )}
+          {confirm !== "account" && <button className="btn danger-ghost" onClick={() => setConfirm("account")}>{m.delete}</button>}
+        </div>
+        {session.profile && <p className="muted small-note">{m.deleteBirthNote}</p>}
+        {confirm && (
+          <div className="confirm" role="alertdialog" aria-label={confirm === "profile" ? m.deleteBirth : m.delete}>
+            <p>{confirm === "profile" ? m.deleteBirthConfirm : m.deleteConfirm}</p>
+            <div className="actions">
+              <button className="btn danger" disabled={busy} onClick={confirm === "profile" ? deleteProfile : deleteAccount}>
+                {confirm === "profile" ? m.deleteBirthYes : m.deleteYes}
+              </button>
+              <button className="btn ghost" onClick={() => setConfirm(null)}>{m.cancel}</button>
+            </div>
+          </div>
+        )}
+        <a className="link" href={`/${locale}/privacy`}>{m.privacyLink} →</a>
+      </section>
+    </>
   );
 }

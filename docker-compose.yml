@@ -1,0 +1,49 @@
+# Production stack: Caddy (HTTPS) -> Next.js site -> Spring engine.
+# Run on the server:  docker compose up -d --build
+# Settings: deploy/.env (domain) and deploy/web.env / deploy/engine.env (secrets), see deploy/*.example.
+name: astro
+
+services:
+  engine:
+    build: ./engine
+    restart: unless-stopped
+    env_file: deploy/engine.env
+    # No published ports: only the web container can reach it.
+    mem_limit: 3g
+
+  web:
+    build:
+      context: ./web
+      args:
+        ENGINE_URL: http://engine:8080
+    restart: unless-stopped
+    env_file: deploy/web.env
+    environment:
+      APP_URL: https://${DOMAIN}
+    volumes:
+      - astro-data:/app/.data
+    depends_on:
+      - engine
+    mem_limit: 1g
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+
+volumes:
+  astro-data:
+  caddy-data:
+  caddy-config:
