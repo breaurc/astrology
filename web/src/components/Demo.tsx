@@ -11,6 +11,9 @@ import ScoreDial from "./ScoreDial";
 import ChartWheel from "./ChartWheel";
 import ProfilePanel from "./ProfilePanel";
 import { PILLAR_NAMES, pillarLabel, stemLabel } from "@/lib/bazi";
+import AccountNav from "./account/AccountNav";
+import { isComplete, loadDraft } from "@/lib/account";
+import type { BirthProfile, Place, SessionInfo } from "@/lib/profile";
 
 type Tab = "today" | "profile" | "chart" | "chinese" | "numerology" | "best";
 
@@ -29,6 +32,7 @@ export default function Demo({ locale }: { locale: Locale }) {
   const [lat, setLat] = useState(PLACES[0].lat);
   const [lon, setLon] = useState(PLACES[0].lon);
   const [zone, setZone] = useState(PLACES[0].zone);
+  const [savedPlace, setSavedPlace] = useState<Place | null>(null);
 
   const [question, setQuestion] = useState("");
   const [askDate, setAskDate] = useState(todayIso());
@@ -50,8 +54,23 @@ export default function Demo({ locale }: { locale: Locale }) {
   );
   const birthKey = JSON.stringify(birth);
 
+  /** Pre-fills the form from the signed-in profile, or from the onboarding draft of a guest. */
+  function prefill(s: SessionInfo) {
+    const draft = loadDraft();
+    const p: BirthProfile | null = s.profile ?? (isComplete(draft) ? draft : null);
+    if (!p) return;
+    setName(p.birthName || p.displayName || "");
+    setDate(p.date);
+    setTimeUnknown(p.timeAccuracy === "unknown");
+    if (p.time) setTime(p.time);
+    setSavedPlace(p.place);
+    setPlaceId("saved");
+    setLat(p.place.latitude); setLon(p.place.longitude); setZone(p.place.zone);
+  }
+
   function choosePlace(id: string) {
     setPlaceId(id);
+    if (id === "saved" && savedPlace) { setLat(savedPlace.latitude); setLon(savedPlace.longitude); setZone(savedPlace.zone); return; }
     const p = PLACES.find((x) => x.id === id);
     if (p) { setLat(p.lat); setLon(p.lon); setZone(p.zone); }
   }
@@ -106,11 +125,14 @@ export default function Demo({ locale }: { locale: Locale }) {
           <h1>{d.title}</h1>
           <p>{d.tagline}</p>
         </div>
-        <nav className="lang" aria-label="Language">
-          {LOCALES.map((l) => (
-            <a key={l} href={`/${l}`} aria-current={l === locale ? "page" : undefined}>{l.toUpperCase()}</a>
-          ))}
-        </nav>
+        <div className="masthead-right">
+          <AccountNav locale={locale} onSession={prefill} />
+          <nav className="lang" aria-label="Language">
+            {LOCALES.map((l) => (
+              <a key={l} href={`/${l}`} aria-current={l === locale ? "page" : undefined}>{l.toUpperCase()}</a>
+            ))}
+          </nav>
+        </div>
       </header>
 
       <div className="grid">
@@ -137,6 +159,7 @@ export default function Demo({ locale }: { locale: Locale }) {
           <div className="field">
             <label htmlFor="place">{d.place}</label>
             <select id="place" value={placeId} onChange={(e) => choosePlace(e.target.value)}>
+              {savedPlace && <option value="saved">{savedPlace.label}</option>}
               {PLACES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
               <option value="custom">{d.custom}</option>
             </select>
@@ -162,7 +185,7 @@ export default function Demo({ locale }: { locale: Locale }) {
         </aside>
 
         <section>
-          <div className="card ask">
+          <div className="card ask" id="ask">
             <h2>{d.askTitle}</h2>
             <form onSubmit={(e) => { e.preventDefault(); ask(question); }}>
               <input

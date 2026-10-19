@@ -6,3 +6,5 @@ web/next-env.d.ts
 .idea/
 *.iml
 .env
+web/.data/
+.env*.local

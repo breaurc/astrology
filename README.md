@@ -39,6 +39,32 @@ set ASTRO_LLM_MODEL=deepseek/deepseek-v4-flash
 
 Instead of exporting variables, copy `engine/.env.example` to `engine/.env` (git-ignored) and fill it in; Spring imports it at startup, so restart the engine after editing it. Real environment variables take precedence over the file.
 
+## Accounts & onboarding
+
+User-facing flow (RO/EN):
+
+1. **`/ro/start`**: one question per screen with a progress bar: name (+ optional full birth name for numerology), date (day / month / year), birth time (exact / approximate / unknown), birthplace (autocomplete with time zone, or manual coordinates), optional focus areas + gender. A "your sky so far" strip fills in live (Sun, Moon, Rising, Chinese animal, life path). Browser back moves between steps; answers are kept as a draft in `localStorage`, so they survive the Google/Facebook redirect.
+2. **Reveal**: the cosmic ID card (Sun, Moon, Rising, Chinese sign, life path, today's score) is shown *before* any sign-up. Below it: Google, Facebook or email + password, with an explicit consent checkbox for storing birth data. "Continue without an account" goes to the daily reading pre-filled.
+3. **`/ro/me`**: today's score and top categories (ordered by the person's focus areas), the cosmic ID, the stored birth data with inline editing, and the account box: sign-in methods, consent date, **download my data** (JSON), sign out, **delete account** (two-step confirm).
+4. **`/ro/login`**: sign in with Google / Facebook / email. The home page header shows "Get your reading" + "Sign in" for guests and "My profile" when signed in, and the reading form pre-fills from the saved profile.
+
+How it works (no extra npm dependencies):
+
+| Piece | Where |
+|---|---|
+| Route handlers | `web/src/app/api/auth/*`, `api/profile`, `api/account`, `api/places` |
+| Logic (plain `Request` → `Response`, testable outside Next) | `web/src/lib/server/auth.ts` |
+| Sessions | HMAC-signed, HttpOnly, SameSite=Lax cookie (30 days); `Origin` check on writes |
+| Passwords | scrypt (node:crypto); 5 failed logins → 15 min lock per email |
+| Google / Facebook | OAuth authorization code flow with `state` (+ PKCE for Google). A provider login links to an existing account only when the provider marks the email verified |
+| Storage | `web/.data/users.json` via `lib/server/store.ts`. Swap that one file for PostgreSQL (or an engine endpoint) for production |
+| Geocoding | Open-Meteo geocoder (GeoNames data, free, no key), falls back to the demo place list offline |
+| Validation | `lib/profile.ts`, shared by browser and server |
+
+Setup: copy `web/.env.example` to `web/.env.local`. Email sign-up works with no configuration; the Google/Facebook buttons stay disabled until their client ID + secret are set (redirect URIs are listed in the example file).
+
+Tests: `cd web && npx tsx --test tests/auth.test.ts` (register/login/lockout, sessions, CSRF, profile validation, OAuth round-trips with mocked Google/Facebook, account linking, export, delete).
+
 ## API
 
 All endpoints are `POST` with JSON. Birth data:
@@ -95,7 +121,8 @@ Covers Meeus reference values, equinox sign change, retrograde detection, numero
 
 ## Next steps toward the product
 
-- Persist users and saved charts (PostgreSQL), GDPR consent/deletion.
+- Move the user store from `web/.data/users.json` to PostgreSQL (keep `lib/server/store.ts`'s interface).
+- Use the stored gender for BaZi luck pillars; email verification + password reset for email accounts.
 - SEO pages per sign/day (Next.js SSR) generated from `/api/day`-style data.
 - Caffeine/Redis cache instead of the in-memory one.
 - Paid tier: free-text Ask + best-days search; PDF natal/compatibility reports.
