@@ -1,0 +1,62 @@
+# .github/workflows/deploy.yml
+# CI/CD: on every push to main, run the tests, then SSH into the Oracle server
+# and run deploy/update.sh (git pull + docker compose up --build), then check the site.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # "Run workflow" button in the Actions tab
+
+concurrency:
+  group: deploy-production  # pushes queue up; never two deploys at once
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - name: Engine tests
+        run: mvn -q -B test
+        working-directory: engine
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Web tests
+        run: |
+          npm ci
+          npx tsx --test tests/auth.test.ts
+        working-directory: web
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45     # the ARM server rebuilds the images; first build can take 10-20 min
+    environment: production
+    steps:
+      - name: SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Pull and rebuild on the server
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ServerAliveInterval=60 \
+            ubuntu@${{ secrets.DEPLOY_HOST }} \
+            'cd ~/astro && bash deploy/update.sh && docker compose --env-file deploy/.env ps'
+
+      - name: Smoke test
+        run: curl -fsS -o /dev/null --retry 12 --retry-delay 5 --retry-all-errors https://astro.lexeek.net/ro
