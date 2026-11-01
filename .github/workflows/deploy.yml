@@ -56,7 +56,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -o ServerAliveInterval=60 \
             ubuntu@${{ secrets.DEPLOY_HOST }} \
-            'cd ~/astro && bash deploy/update.sh && docker compose --env-file deploy/.env ps'
+            'cd ~/astrology && bash deploy/update.sh && docker compose --env-file deploy/.env ps'
 
       - name: Smoke test
         run: curl -fsS -o /dev/null --retry 12 --retry-delay 5 --retry-all-errors https://astro.lexeek.net/ro
