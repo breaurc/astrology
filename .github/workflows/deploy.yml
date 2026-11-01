@@ -50,8 +50,8 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-
+          ssh-keyscan -t ed25519 ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+     
       - name: Pull and rebuild on the server
         run: |
           ssh -i ~/.ssh/deploy_key -o ServerAliveInterval=60 \
