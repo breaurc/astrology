@@ -3,7 +3,7 @@ export const LOCALES: Locale[] = ["ro", "en"];
 
 const dict = {
   en: {
-    title: "Is today a very good day?",
+    title: "Is today a good day?",
     tagline: "Western transits, the Chinese almanac and your personal day number, read together.",
     birth: "Your birth",
     name: "Name (optional, for numerology)",
