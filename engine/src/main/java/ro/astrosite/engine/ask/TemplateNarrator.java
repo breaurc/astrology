@@ -1,6 +1,7 @@
 package ro.astrosite.engine.ask;
 
 import org.springframework.stereotype.Component;
+import ro.astrosite.engine.reading.ReadingSystem;
 import ro.astrosite.engine.scoring.Category;
 import ro.astrosite.engine.scoring.DayScores;
 
@@ -10,7 +11,7 @@ import java.util.stream.Collectors;
 
 /** Free, deterministic narrator built from localized templates. Always available. */
 @Component
-public class TemplateNarrator implements Narrator {
+public class TemplateNarrator {
 
     private final FactorTexts texts;
 
@@ -18,10 +19,6 @@ public class TemplateNarrator implements Narrator {
         this.texts = texts;
     }
 
-    @Override
-    public String name() { return "template"; }
-
-    @Override
     public String narrate(String question, Category category, int score, DayScores.Verdict verdict,
                           List<AskAnswer.Reason> reasons, Locale locale) {
         String cat = texts.label(category.name(), locale);
@@ -37,6 +34,19 @@ public class TemplateNarrator implements Narrator {
         if (!cons.isEmpty()) {
             sb.append(' ').append(texts.message("narrative.cons", locale, join(cons)));
         }
+        sb.append(' ').append(texts.message("narrative.advice." + verdict.name().toLowerCase(), locale));
+        return sb.toString();
+    }
+
+    /** The 4-line landing-page reading for one system, without an LLM. */
+    public String narrateReading(ReadingSystem system, int score, DayScores.Verdict verdict,
+                                 List<AskAnswer.Reason> reasons, Locale locale) {
+        String sys = texts.label("system." + system.name(), locale);
+        StringBuilder sb = new StringBuilder(texts.message("reading." + verdict.name().toLowerCase(), locale, sys));
+        List<AskAnswer.Reason> pros = reasons.stream().filter(r -> r.weight() > 0).limit(2).toList();
+        List<AskAnswer.Reason> cons = reasons.stream().filter(r -> r.weight() < 0).limit(1).toList();
+        if (!pros.isEmpty()) sb.append(' ').append(texts.message("reading.pros", locale, join(pros)));
+        if (!cons.isEmpty()) sb.append(' ').append(texts.message("reading.cons", locale, join(cons)));
         sb.append(' ').append(texts.message("narrative.advice." + verdict.name().toLowerCase(), locale));
         return sb.toString();
     }

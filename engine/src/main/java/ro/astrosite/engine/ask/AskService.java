@@ -13,21 +13,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** "Is it a good day to …?" — classification, guardrails, scoring, narration. */
+/** "Is it a good day to …?" — classification, guardrails, scoring, narration (the ANSWER mode). */
 @Service
 public class AskService {
 
     private final DayScoreService dayScores;
     private final FactorTexts texts;
-    private final TemplateNarrator templateNarrator;
-    private final LlmNarrator llmNarrator;
+    private final NarrationService narration;
 
-    public AskService(DayScoreService dayScores, FactorTexts texts,
-                      TemplateNarrator templateNarrator, LlmNarrator llmNarrator) {
+    public AskService(DayScoreService dayScores, FactorTexts texts, NarrationService narration) {
         this.dayScores = dayScores;
         this.texts = texts;
-        this.templateNarrator = templateNarrator;
-        this.llmNarrator = llmNarrator;
+        this.narration = narration;
     }
 
     @Cacheable(cacheNames = "askAnswers",
@@ -36,10 +33,11 @@ public class AskService {
         Guardrails.Flag flag = Guardrails.check(question);
         Category category = QuestionClassifier.classify(question);
 
-        if (flag == Guardrails.Flag.DISTRESS) {
-            return new AskAnswer(question, date, Category.WELLBEING, 0, DayScores.Verdict.MIXED, List.of(),
-                    texts.message("guardrail.distress", locale), "guardrail", flag,
-                    texts.message("disclaimer", locale), java.util.Map.of());
+        if (flag == Guardrails.Flag.DISTRESS || flag == Guardrails.Flag.OFF_TOPIC) {
+            Category c = flag == Guardrails.Flag.DISTRESS ? Category.WELLBEING : Category.GENERAL;
+            return new AskAnswer(question, date, c, 0, DayScores.Verdict.MIXED, List.of(),
+                    texts.message("guardrail." + flag.name().toLowerCase(), locale), "guardrail", flag,
+                    texts.message("disclaimer", locale), java.util.Map.of(), null);
         }
 
         DayScores scores = dayScores.scores(birth, date);
@@ -47,20 +45,13 @@ public class AskService {
         DayScores.Verdict verdict = DayScores.verdict(score);
         List<AskAnswer.Reason> reasons = reasons(scores, category, locale);
 
-        String text = null;
-        String narrator = "template";
-        if (llmNarrator.enabled()) {
-            text = llmNarrator.narrate(question, category, score, verdict, reasons, locale);
-            if (text != null) narrator = "llm";
-        }
-        if (text == null) {
-            text = templateNarrator.narrate(question, category, score, verdict, reasons, locale);
-        }
+        NarrationService.Result n = narration.answer(question, category, score, verdict, reasons, locale);
+        String text = n.text();
         if (flag != Guardrails.Flag.NONE) {
             text = texts.message("guardrail." + flag.name().toLowerCase(), locale) + " " + text;
         }
-        return new AskAnswer(question, date, category, score, verdict, reasons, text, narrator, flag,
-                texts.message("disclaimer", locale), scores.context());
+        return new AskAnswer(question, date, category, score, verdict, reasons, text, n.narrator(), flag,
+                texts.message("disclaimer", locale), scores.context(), n.usage());
     }
 
     public List<AskAnswer.Reason> reasons(DayScores scores, Category category, Locale locale) {

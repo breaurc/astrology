@@ -3,21 +3,22 @@
 import { useEffect, useId, useState } from "react";
 import { account, AccountError } from "@/lib/account";
 import type { SessionInfo } from "@/lib/profile";
-import type { Locale } from "@/lib/i18n";
+import { fill, type Locale } from "@/lib/i18n";
 import { ta } from "@/lib/i18n-account";
 import ConsentText from "./ConsentText";
 
 interface Props {
   locale: Locale;
-  /** Where Google/Facebook should send the person back to. */
+  /** Where Google/Facebook and the email verification link should send the person. */
   next: string;
   initialMode?: "register" | "login";
   defaultName?: string;
-  /** Called after an email sign-up / sign-in succeeds (OAuth leaves the page instead). */
+  /** Called after an email sign-in succeeds (sign-up waits for the verification link; OAuth leaves the page). */
   onAuthenticated: (s: SessionInfo) => void | Promise<void>;
   initialError?: string | null;
 }
 
+/** Google / Facebook / email with the GDPR consent checkbox (SPEC section 5). */
 export default function AuthPanel({ locale, next, initialMode = "register", defaultName, onAuthenticated, initialError }: Props) {
   const a = ta(locale).auth;
   const id = useId();
@@ -29,16 +30,18 @@ export default function AuthPanel({ locale, next, initialMode = "register", defa
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(initialError ?? null);
   const [fields, setFields] = useState<string[]>([]);
+  const [sent, setSent] = useState<{ email: string; devVerifyUrl?: string } | null>(null);
+  const [resent, setResent] = useState(false);
 
   useEffect(() => {
     account.providers().then(setProviders).catch(() => setProviders({ google: false, facebook: false }));
   }, []);
 
   const register = mode === "register";
-  const errorText = (code: string) => (a.errors as Record<string, string>)[code] ?? a.errors.generic;
+  const errorText = (code: string) => a.errors[code] ?? a.errors.generic;
 
   function oauth(p: "google" | "facebook") {
-    if (register && !consent) {
+    if (!consent) {
       setError("consent");
       setFields(["consent"]);
       return;
@@ -57,10 +60,12 @@ export default function AuthPanel({ locale, next, initialMode = "register", defa
     }
     setBusy(true);
     try {
-      const s = register
-        ? await account.register(email, password, defaultName, consent)
-        : await account.login(email, password);
-      await onAuthenticated(s);
+      if (register) {
+        const r = await account.register(email, password, defaultName, consent, locale, next);
+        setSent({ email: r.email, devVerifyUrl: r.devVerifyUrl });
+      } else {
+        await onAuthenticated(await account.login(email, password));
+      }
     } catch (err) {
       const ae = err instanceof AccountError ? err : new AccountError("generic");
       setError(ae.code);
@@ -69,6 +74,28 @@ export default function AuthPanel({ locale, next, initialMode = "register", defa
     } finally {
       setBusy(false);
     }
+  }
+
+  async function resend() {
+    setBusy(true);
+    try {
+      const r = await account.resend(sent?.email ?? email, next);
+      setSent({ email: sent?.email ?? email, devVerifyUrl: r.devVerifyUrl });
+      setResent(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (sent) {
+    return (
+      <div className="auth" role="status">
+        <h3>{a.verifyTitle}</h3>
+        <p className="muted">{fill(a.verifyText, { email: sent.email })}</p>
+        {sent.devVerifyUrl && <a className="btn lavender" href={sent.devVerifyUrl}>{a.verifyDev}</a>}
+        <button type="button" className="link center" disabled={busy} onClick={resend}>{resent ? a.resent : a.resend}</button>
+      </div>
+    );
   }
 
   // Social buttons appear only when the server enables them (SOCIAL_LOGIN=on + provider keys).
@@ -85,13 +112,6 @@ export default function AuthPanel({ locale, next, initialMode = "register", defa
 
   return (
     <div className="auth">
-      {register && (
-        <label className={`consent${fields.includes("consent") ? " invalid" : ""}`}>
-          <input type="checkbox" checked={consent} onChange={(e) => { setConsent(e.target.checked); if (e.target.checked && error === "consent") setError(null); }} />
-          <ConsentText locale={locale} />
-        </label>
-      )}
-
       {anySocial && (
         <>
           <div className="socials">{providerButton("google")}{providerButton("facebook")}</div>
@@ -109,9 +129,19 @@ export default function AuthPanel({ locale, next, initialMode = "register", defa
           <input id={`${id}-pw`} type="password" autoComplete={register ? "new-password" : "current-password"} minLength={register ? 8 : undefined}
             value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
-        {error && <div className="alert" role="alert">{error === "consent" ? a.consentNeeded : errorText(error)}</div>}
+        {error && (
+          <div className="alert" role="alert">
+            {error === "consent" ? a.consentNeeded : errorText(error)}
+            {error === "email_unverified" && <> <button type="button" className="link" onClick={resend} disabled={busy}>{a.resend}</button></>}
+          </div>
+        )}
         <button className="btn wide" type="submit" disabled={busy}>{busy ? a.busy : register ? a.register : a.login}</button>
       </form>
+
+      <label className={`consent${fields.includes("consent") ? " invalid" : ""}`}>
+        <input type="checkbox" checked={consent} onChange={(e) => { setConsent(e.target.checked); if (e.target.checked && error === "consent") setError(null); }} />
+        <ConsentText locale={locale} />
+      </label>
 
       <button type="button" className="link center" onClick={() => { setMode(register ? "login" : "register"); setError(null); setFields([]); }}>
         {register ? a.toLogin : a.toRegister}

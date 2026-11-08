@@ -6,7 +6,7 @@ import { LOCALES, type Locale } from "@/lib/i18n";
 // Read the operator details at request time, so they can be changed without rebuilding.
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Privacy · Astro" };
+export const metadata: Metadata = { title: "Privacy" };
 
 export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -18,6 +18,7 @@ export default async function Page({ params }: { params: Promise<{ locale: strin
       hosting: process.env.PRIVACY_HOSTING,
       ai: process.env.PRIVACY_AI,
       social: process.env.SOCIAL_LOGIN === "on",
+      payments: !!process.env.STRIPE_SECRET_KEY,
     }} />
   );
 }

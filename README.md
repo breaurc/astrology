@@ -1,11 +1,13 @@
-# Astro site — engine + demo
+# Cosmic Triad — cosmictriad.com
 
-Two parts:
+A personal daily reading in one step, then a three-tier funnel: free reading → free account (7-day calendar, one
+question a day) → credits (multi-turn conversation). Western zodiac, Chinese horoscope and numerology, in Romanian
+and English. Implements the companion *Astro Site — Functional Specification (SPEC)* and *High-Level Design (HLD)*.
 
-| Folder    | What                                                                                   | Stack                     |
-|-----------|----------------------------------------------------------------------------------------|---------------------------|
-| `engine/` | Calculation + "Ask" API: Western chart & transits, Chinese zodiac/BaZi/almanac, numerology, day scoring, best-dates search, guardrails, optional LLM narration | Spring Boot 3.3, Java 21, lunar-java |
-| `web/`    | Demo page (RO/EN): birth form, Ask box with score dial, today's scores, chart wheel, Chinese, numerology, best days | Next.js 15, React 19       |
+| Folder    | What                                                                                                   | Stack                     |
+|-----------|--------------------------------------------------------------------------------------------------------|---------------------------|
+| `engine/` | Pure compute + narration: charts, transits, Chinese almanac, numerology, day scoring; `reading`, `answer` and `chat` narration modes with versioned prompts, token budget and timeouts | Spring Boot 3.3, Java 21, lunar-java |
+| `web/`    | The site: landing with the free reading, sign-in sheet, calendar + question, paywall, conversation, profile; identity, quotas, credits and the Stripe integration live in its server layer | Next.js 15, React 19 |
 
 ## Run
 
@@ -14,129 +16,123 @@ Two parts:
 cd engine
 mvn spring-boot:run
 
-# 2. web (port 3000) — proxies /engine/* to http://localhost:8080/api/*
+# 2. web (port 3000)
 cd web
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000 (redirects to `/ro`; `/en` for English).
+Open http://localhost:3000 (redirects to `/ro`; `/en` for English). Without a mail provider the sign-in sheet shows a
+*"Development: open the verification link"* button; without Stripe keys the paywall simulates the purchase.
 
-Optional LLM narration (otherwise deterministic templates are used). Two providers:
+LLM narration is optional (templates otherwise). Copy `engine/.env.example` to `engine/.env`:
 
 ```bash
-# Anthropic directly (default provider, default model claude-haiku-4-5)
-set ASTRO_LLM_API_KEY=sk-ant-...     # Windows
-export ASTRO_LLM_API_KEY=sk-ant-...  # bash
-
-# OpenRouter: any model from https://openrouter.ai/models (default deepseek/deepseek-v4-flash)
-set ASTRO_LLM_PROVIDER=openrouter
-set ASTRO_LLM_API_KEY=sk-or-...
-set ASTRO_LLM_MODEL=deepseek/deepseek-v4-flash
+ASTRO_LLM_PROVIDER=openrouter          # or anthropic
+ASTRO_LLM_API_KEY=sk-or-...
+ASTRO_LLM_MODEL=deepseek/deepseek-v4-flash
+ASTRO_LLM_FALLBACK_MODEL=              # tried on errors / timeouts
+ASTRO_LLM_TIMEOUT_MS=20000
+ASTRO_LLM_DAILY_TOKENS=0               # daily ceiling; 0 = unlimited
 ```
 
-`ASTRO_LLM_BASE_URL` overrides the endpoint host (e.g. for a proxy).
+## The funnel (SPEC sections 2 to 4)
 
-Instead of exporting variables, copy `engine/.env.example` to `engine/.env` (git-ignored) and fill it in; Spring imports it at startup, so restart the engine after editing it. Real environment variables take precedence over the file.
+| Tier | Screen | Route | What the server enforces |
+|---|---|---|---|
+| Free | Landing: form + reading on one page; locked calendar and question teasers; conversation strip | `/[locale]` | `POST /api/readings`: `FREE_READINGS_PER_IP` per hashed IP per day (identical inputs are not counted twice); the engine caches a reading per inputs + date until its hourly clear |
+| Signed in | Sign-in sheet (bottom sheet / modal) → *Your week*: 7-day strip, day detail, question box, conversation panel | `/[locale]/app` | 401 without a session, 409 without birth data; `POST /api/questions` is unique per (user, local day) → 429 with `retryAt` |
+| Paid | Paywall → Stripe Checkout → *credits/done* → conversation | `/[locale]/credits`, `/[locale]/app/chat/[id]` | `POST /api/threads` takes one credit in the same transaction (402 at zero); `MESSAGE_CAP` messages and `MAX_CHARS` per message; a thread closed with no messages refunds the credit |
 
-## Deploy
+Also: `/[locale]/profile` (birth data, language, credits and history, export, delete), `/[locale]/privacy`,
+`/[locale]/terms`, `/[locale]/login` (deep links and OAuth returns). `/me` and `/start` redirect to the new routes.
 
-Public demo on a free Oracle Cloud server with Docker Compose + Caddy (HTTPS): see **[deploy/DEPLOY.md](deploy/DEPLOY.md)**.
+Every gate is decided by the server and surfaced as a machine-readable reason (`sign_in`, `birth_data`, `credits`,
+`free_readings`, `daily_question`, `thread_closed`); the UI only renders the matching locked state.
 
-## Accounts & onboarding
+### How it maps onto the HLD
 
-User-facing flow (RO/EN):
+The HLD puts identity, quotas and credits in the Spring engine with PostgreSQL. This version keeps them in the
+Next.js server layer (`web/src/lib/server/*`), which already had sessions and the user store, and keeps the engine
+stateless; the engine is reachable only from the web container, so the enforcement point is still single. The
+data model follows HLD section 5 (users, birth data, readings cache in the engine, questions, threads, messages,
+credit ledger, Stripe events, hashed IP quota), stored in `web/.data/users.json` behind one serialized store
+(`lib/server/store.ts`). Moving that store to PostgreSQL, or the whole layer into the engine, needs no change
+elsewhere. See *Next steps*.
 
-1. **`/ro/start`**: one question per screen with a progress bar: name (+ optional full birth name for numerology), date (day / month / year), birth time (exact / approximate / unknown), birthplace (autocomplete with time zone, or manual coordinates), optional focus areas + gender. A "your sky so far" strip fills in live (Sun, Moon, Rising, Chinese animal, life path). Browser back moves between steps; answers are kept as a draft in `localStorage`, so they survive the Google/Facebook redirect.
-2. **Reveal**: the cosmic ID card (Sun, Moon, Rising, Chinese sign, life path, today's score) is shown *before* any sign-up. Below it: Google, Facebook or email + password, with an explicit consent checkbox for storing birth data. "Continue without an account" goes to the daily reading pre-filled.
-3. **`/ro/me`**: today's score and top categories (ordered by the person's focus areas), the cosmic ID, the stored birth data with inline editing, and the account box: sign-in methods, consent date, **download my data** (JSON), sign out, **delete account** (two-step confirm).
-4. **`/ro/login`**: sign in with Google / Facebook / email. The home page header shows "Get your reading" + "Sign in" for guests and "My profile" when signed in, and the reading form pre-fills from the saved profile.
+## Web server layer (`web/src/lib/server`)
 
-How it works (no extra npm dependencies):
-
-| Piece | Where |
+| File | Responsibility |
 |---|---|
-| Route handlers | `web/src/app/api/auth/*`, `api/profile`, `api/account`, `api/places` |
-| Logic (plain `Request` → `Response`, testable outside Next) | `web/src/lib/server/auth.ts` |
-| Sessions | HMAC-signed, HttpOnly, SameSite=Lax cookie (30 days); `Origin` check on writes |
-| Passwords | scrypt (node:crypto); 5 failed logins → 15 min lock per email |
-| Google / Facebook | OAuth authorization code flow with `state` (+ PKCE for Google). A provider login links to an existing account only when the provider marks the email verified |
-| Storage | `web/.data/users.json` via `lib/server/store.ts`. Swap that one file for PostgreSQL (or an engine endpoint) for production |
-| Geocoding | Open-Meteo geocoder (GeoNames data, free, no key), falls back to the demo place list offline |
-| Validation | `lib/profile.ts`, shared by browser and server |
+| `tier.ts` | Resolves the caller to `anonymous` / `user` / `paid` (credits > 0) and gates features; builds `GET /api/me` |
+| `features.ts` | `POST /api/readings`, `GET /api/calendar`, `GET/POST /api/questions`, `/api/threads[...]` |
+| `credits.ts` | Packages (prices read from Stripe at startup when ids are set), `POST /api/credits/checkout`, signature-verified `POST /api/webhooks/stripe` (idempotent by event id), ledger history |
+| `auth.ts` | Email + password with verification link, Google / Facebook (PKCE, state), session cookie, profile, language, GDPR export / delete |
+| `store.ts` | The JSON-file store: users, questions, threads, messages, ledger, Stripe events, IP counters; cascading delete |
+| `engine.ts` | The only client of the Spring engine (fakeable in tests) |
+| `mailer.ts` | Verification emails through Resend; logs the link when not configured |
+| `request.ts` | JSON helpers, daily-salted IP hash, the caller's local date from `X-Timezone` |
 
-Setup: copy `web/.env.example` to `web/.env.local`. Email sign-up works with no configuration. Google/Facebook sign-in is hidden unless `SOCIAL_LOGIN=on` **and** their client ID + secret are set (redirect URIs are listed in the example file).
+Configuration: `web/.env.example` (limits, Stripe, mail, social login, privacy notice).
 
-### Privacy / GDPR
+## Engine API (`/api`, JSON)
 
-- **Notice**: `/ro/privacy`, `/en/privacy` (`components/PrivacyNotice.tsx`): controller, data, purposes and legal bases, recipients, retention, rights, ANSPDCP, cookies, minimum age 16. Fill `PRIVACY_CONTROLLER`, `PRIVACY_EMAIL`, `PRIVACY_HOSTING` (and `PRIVACY_AI` if the engine uses an LLM); until then the page shows a red reminder. Bump `POLICY_VERSION` in `lib/privacy.ts` when the notice changes.
-- **Consent**: unticked checkbox linking to the notice, incl. "at least 16"; the date and notice version are stored with the account.
-- **Rights, self-service** on `/me#data`: edit, download all data (JSON), delete birth data (withdraws consent, keeps the login), delete account.
-- **Retention**: accounts unused for 12 months are deleted automatically; the engine clears its in-memory caches (which hold birth data and questions) every hour (`config/CacheExpiry.java`, `astro.cache.clear-ms`).
-- **No third-party calls from the browser**: fonts are self-hosted via `next/font`; no analytics, so no cookie banner (only strictly necessary cookies).
-- Footer on every page: demo / entertainment notice + privacy link.
-
-Tests: `cd web && npx tsx --test tests/auth.test.ts` (register/login/lockout, sessions, CSRF, profile validation, OAuth round-trips with mocked Google/Facebook, account linking, export, delete).
-
-## API
-
-All endpoints are `POST` with JSON. Birth data:
-
-```json
-{ "name": "Ana Pop", "date": "1990-06-15", "time": "08:30", "zone": "Europe/Bucharest",
-  "latitude": 47.16, "longitude": 27.59 }
-```
-
-`time` may be `null` (houses/ascendant are then omitted).
+Birth data: `{ "name": "Ana Pop", "date": "1990-06-15", "time": "08:30", "zone": "Europe/Bucharest", "latitude": 47.16, "longitude": 27.59 }`
+(`time` may be `null`).
 
 | Endpoint | Body | Returns |
 |---|---|---|
-| `/api/chart` | birth | positions, signs, retrogrades, ASC/MC, whole-sign houses, aspects |
-| `/api/chinese?date=` | birth | animal, element, yin/yang, four pillars, day master + the day's almanac (suitable/avoid, auspicious, clash/harmony with your sign) |
-| `/api/numerology?date=` | birth | life path, birthday, expression/soul urge/personality (needs name), personal year/month/day |
-| `/api/day?date=&locale=` | birth | 1–10 score per category with localized reasons |
-| `/api/ask` | `{ birth, question, date?, locale? }` | category, score, verdict, reasons, narrative text, guardrail flag |
-| `/api/best-days` | `{ birth, category, from?, days?, limit?, locale? }` | best dates ranked by score |
+| `POST /api/reading` | `{ birth, system: WESTERN\|CHINESE\|NUMEROLOGY, date?, locale? }` | computed facts for the system, score/verdict, factors, ~4-line text (`narrator`: llm/template). Cached per inputs + date + locale |
+| `POST /api/calendar` | `{ birth, from?, days?, locale? }` | per day: score, verdict, `good` / `avoid` category keys, per-category scores, top reasons. No LLM |
+| `POST /api/chat` | `{ birth, date?, locale?, history: [{role,text}], message }` | the next reply; guardrails (distress, medical/legal/investment prefix, off-topic refusal without an LLM call) |
+| `POST /api/ask` | `{ birth, question, date?, locale? }` | the daily question: category, score, verdict, reasons, text, token usage |
+| `POST /api/chart`, `/chinese`, `/numerology`, `/day`, `/best-days` | as before | raw computations |
 
-Categories: `LOVE, CAREER, MONEY, TRAVEL, COMMUNICATION, HOME, WELLBEING, GENERAL`.
+Narration (`ask/NarrationService`): one versioned system prompt per mode and language under
+`resources/prompts/{mode}.{lang}.txt`; the facts are always computed in Java and handed to the model as context.
+Per-mode output caps, a 20 s timeout with an optional fallback model, a daily token ceiling (readings fall back to
+templates, answer/chat return `503 budget`), and `model` / `tokens_in` / `tokens_out` / latency logged per call and
+returned to the web tier, which stores them on the question / message rows.
 
-Example:
+## Accounts, consent and GDPR (SPEC section 5)
 
-```bash
-curl -s localhost:8080/api/ask -H "Content-Type: application/json" -d "{\"birth\":{\"date\":\"1990-06-15\",\"time\":\"08:30\",\"zone\":\"Europe/Bucharest\",\"latitude\":47.16,\"longitude\":27.59},\"question\":\"E o zi bună să cunosc o persoană nouă?\",\"locale\":\"ro\"}"
-```
+- Email accounts are created only with the consent box ticked and become active when the verification link is
+  opened (24 h, resendable); social sign-in carries the consent flag and is refused without it.
+- The privacy notice (`/privacy`) and the terms (`/terms`) exist in both languages; the terms state the service is
+  for entertainment. Fill `PRIVACY_CONTROLLER`, `PRIVACY_EMAIL`, `PRIVACY_HOSTING`, `PRIVACY_AI`.
+- Profile page: edit birth data, change language (also sent to the engine with every call), download everything as
+  JSON (account, questions, threads, messages, ledger), delete birth data (withdraw consent) or delete the account
+  (cascades; Stripe keeps its own records).
+- Anonymous visitors: nothing stored server-side beyond a daily-salted IP hash counter; inputs stay in
+  `localStorage` (`astro.inputs`). Session cookie only, no analytics, no cookie banner.
 
-## How a question is answered
+## Payments (SPEC section 6)
 
-1. **Guardrails** (`ask/Guardrails`) — distress → supportive message only; medical/legal/investment → disclaimer prefix.
-2. **Classification** (`ask/QuestionClassifier`) — RO/EN keyword classifier → category.
-3. **Scoring** (`scoring/ScoringRules`, cached per person+day):
-   - Western: transiting planets aspecting natal planets (weighted by planet and aspect), transits through natal houses, retrogrades, Moon phase, Moon sign element, Moon vs natal Sun.
-   - Chinese: almanac favorable/avoid activities mapped to categories, Yellow/Black Path day, day branch vs natal year branch (clash/harm/harmony/trine).
-   - Numerology: personal day number themes.
-   - Factors are summed per category and mapped to 1–10 with a soft curve (`toScore`).
-4. **Narration** — `TemplateNarrator` (free, deterministic, RO/EN) or `LlmNarrator` (Anthropic API, told to use only the computed factors; falls back to templates on any error).
-
-## Accuracy notes
-
-- The ephemeris is self-contained (Meeus for Sun/Moon, JPL approximate elements for planets): Sun ~0.01°, Moon ~0.1°, planets ~0.1–0.5° for 1800–2050. Enough for signs, houses and transit aspects with orbs ≥1°. For progressions or exact ingress minutes, swap `astro/Ephemeris` for Swiss Ephemeris (AGPL or commercial licence) — the rest of the code only uses `Ephemeris.longitude()`.
-- Houses are whole-sign. Placidus can be added in `ChartCalculator.compute`.
-- Timezones use `java.time` + the tz database, so historical DST is handled. Geocoding is a fixed demo list (`web/src/lib/api.ts`); use GeoNames in production.
-- Chinese New Year / lunar dates come from lunar-java (`cn.6tail:lunar`). If Maven cannot find version 1.7.3, pick the latest release on Maven Central.
+Prepaid credits, one credit = one conversation of `MESSAGE_CAP` messages. Packages: single (1), pack (5, highlighted),
+monthly (10 + unlimited questions for 30 days; `MONTHLY_PACKAGE=on` to offer it). Stripe Checkout hosted page with
+automatic tax and invoice; the ledger is written only from the verified `checkout.session.completed` webhook. Set
+`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and the `STRIPE_PRICE_*` ids; without a secret key, development
+simulates the purchase and production returns 503.
 
 ## Tests
 
 ```bash
-cd engine && mvn test
+cd engine && mvn test                      # ephemeris, numerology, scoring, guardrails, API smoke + funnel endpoints (template mode)
+cd web && npx tsx --test tests/*.test.ts   # accounts, verification, OAuth round-trips, GDPR; readings quota, gates, question quota, credits, threads, Stripe webhook
 ```
 
-Covers Meeus reference values, equinox sign change, retrograde detection, numerology, classifier/guardrails, scoring ranges, the lunar-java integration and an API smoke test.
+## Deploy
 
-## Next steps toward the product
+Docker Compose + Caddy on the Oracle Cloud VM: see [deploy/DEPLOY.md](deploy/DEPLOY.md). `ENGINE_URL` is a runtime
+variable of the web container (compose sets `http://engine:8080`). New production settings in
+`deploy/web.env.example`: limits, Resend, Stripe. Add the webhook endpoint `https://<domain>/api/webhooks/stripe`
+for `checkout.session.completed` in the Stripe dashboard.
 
-- Move the user store from `web/.data/users.json` to PostgreSQL (keep `lib/server/store.ts`'s interface).
-- Use the stored gender for BaZi luck pillars; email verification + password reset for email accounts.
-- SEO pages per sign/day (Next.js SSR) generated from `/api/day`-style data.
-- Caffeine/Redis cache instead of the in-memory one.
-- Paid tier: free-text Ask + best-days search; PDF natal/compatibility reports.
-- More systems behind the same `Factor` model: Vedic (sidereal), tarot of the day, Mayan calendar.
+## Next steps
+
+- Move `lib/server/store.ts` to PostgreSQL (same functions), then optionally the whole entitlement layer into the
+  engine as the HLD describes (HLD section 10, increments 2 and 5).
+- Cloudflare rate rules in front of `/api/readings` and `/api/auth/*`; Turnstile if sign-up abuse appears.
+- The monthly package as a real Stripe subscription (`invoice.paid`).
+- PWA manifest and service worker once sign-ins exist.
+- Open questions from the SPEC: the exact `[N]` quotas and price points are environment variables with placeholder defaults.

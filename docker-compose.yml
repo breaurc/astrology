@@ -8,18 +8,17 @@ services:
     build: ./engine
     restart: unless-stopped
     env_file: deploy/engine.env
-    # No published ports: only the web container can reach it.
+    # No published ports: only the web container can reach it, so quotas and credits cannot be bypassed.
     mem_limit: 3g
 
   web:
     build:
       context: ./web
-      args:
-        ENGINE_URL: http://engine:8080
     restart: unless-stopped
     env_file: deploy/web.env
     environment:
       APP_URL: https://${DOMAIN}
+      ENGINE_URL: http://engine:8080
     volumes:
       - astro-data:/app/.data
     depends_on:

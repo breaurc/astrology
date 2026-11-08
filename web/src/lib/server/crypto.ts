@@ -5,7 +5,7 @@ import { getSecret } from "./secret";
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number, opts: object) => Promise<Buffer>;
 const SCRYPT = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
-export function b64url(buf: Buffer | string): string {
+function b64url(buf: Buffer | string): string {
   return Buffer.from(buf).toString("base64url");
 }
 

@@ -1,13 +1,7 @@
-import { notFound } from "next/navigation";
-import Onboarding from "@/components/account/Onboarding";
-import { LOCALES, type Locale } from "@/lib/i18n";
+import { redirect } from "next/navigation";
 
-export function generateStaticParams() {
-  return LOCALES.map((locale) => ({ locale }));
-}
-
+/** The multi-step wizard was replaced by the one-step landing form (HLD section 10, increment 1). */
 export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  if (!LOCALES.includes(locale as Locale)) notFound();
-  return <Onboarding locale={locale as Locale} />;
+  redirect(`/${locale === "en" ? "en" : "ro"}`);
 }

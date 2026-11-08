@@ -2,9 +2,7 @@ import { notFound } from "next/navigation";
 import LoginView from "@/components/account/LoginView";
 import { LOCALES, type Locale } from "@/lib/i18n";
 
-export function generateStaticParams() {
-  return LOCALES.map((locale) => ({ locale }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function Page({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;

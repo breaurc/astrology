@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Cosmic Triad mark: three stars (Western, Chinese, numerology) joined in a triangle -->
+  <rect width="64" height="64" rx="14" fill="#0F1424"/>
+  <path d="M32 14 L50 46 L14 46 Z" fill="none" stroke="#2E3650" stroke-width="2" stroke-linejoin="round"/>
+  <g fill="#E0B35A">
+    <path d="M32 7 L34.2 12.3 L39.5 14.5 L34.2 16.7 L32 22 L29.8 16.7 L24.5 14.5 L29.8 12.3 Z"/>
+    <path d="M50 39 L52.2 44.3 L57.5 46.5 L52.2 48.7 L50 54 L47.8 48.7 L42.5 46.5 L47.8 44.3 Z"/>
+    <path d="M14 39 L16.2 44.3 L21.5 46.5 L16.2 48.7 L14 54 L11.8 48.7 L6.5 46.5 L11.8 44.3 Z"/>
+  </g>
+  <circle cx="32" cy="35" r="3" fill="#B8B5F0"/>
+</svg>

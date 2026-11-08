@@ -15,11 +15,21 @@ spring:
 astro:
   cors:
     origins: http://localhost:3000,http://localhost:3001
+  cache:
+    # Caches hold birth data, readings and questions: cleared hourly (GDPR storage limitation). Readings are
+    # keyed by date, so a day change never serves yesterday's text.
+    clear-ms: 3600000
   llm:
-    provider: ${ASTRO_LLM_PROVIDER:anthropic}   # anthropic | openrouter
-    api-key: ${ASTRO_LLM_API_KEY:}             # empty = template narrator only
-    model: ${ASTRO_LLM_MODEL:}                 # empty = per-provider default (see LlmProperties)
-    base-url: ${ASTRO_LLM_BASE_URL:}           # empty = per-provider default
+    provider: ${ASTRO_LLM_PROVIDER:anthropic}        # anthropic | openrouter
+    api-key: ${ASTRO_LLM_API_KEY:}                  # empty = template narrator only
+    model: ${ASTRO_LLM_MODEL:}                      # empty = per-provider default (see LlmProperties)
+    fallback-model: ${ASTRO_LLM_FALLBACK_MODEL:}    # tried when the main model errors or times out
+    base-url: ${ASTRO_LLM_BASE_URL:}                # empty = per-provider default
+    timeout-ms: ${ASTRO_LLM_TIMEOUT_MS:20000}       # per call (HLD section 6)
+    daily-token-ceiling: ${ASTRO_LLM_DAILY_TOKENS:0}  # 0 = unlimited; when reached, readings use templates, answer/chat return 503
+    max-tokens-reading: ${ASTRO_LLM_MAX_TOKENS_READING:400}
+    max-tokens-answer: ${ASTRO_LLM_MAX_TOKENS_ANSWER:700}
+    max-tokens-chat: ${ASTRO_LLM_MAX_TOKENS_CHAT:900}
 
 management:
   endpoints:

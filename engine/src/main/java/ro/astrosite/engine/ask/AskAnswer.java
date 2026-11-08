@@ -12,13 +12,14 @@ import java.util.Map;
  *
  * @param reasons   localized, human-readable factors (strongest first)
  * @param text      the narrative answer
- * @param narrator  "template" or "llm"
+ * @param narrator  "template", "llm" or "guardrail"
  * @param guardrail NONE, or the flag that limited the answer
+ * @param usage     LLM cost of this answer (null when no model was called)
  */
 public record AskAnswer(String question, LocalDate date, Category category, int score,
                         DayScores.Verdict verdict, List<Reason> reasons, String text,
                         String narrator, Guardrails.Flag guardrail, String disclaimer,
-                        Map<String, String> context) {
+                        Map<String, String> context, NarrationService.Usage usage) {
 
     public record Reason(String source, String text, double weight) {}
 }

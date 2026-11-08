@@ -4,7 +4,7 @@ What runs on the server (`docker-compose.yml`):
 
 ```
 Internet ──443──▶ Caddy (HTTPS, Let's Encrypt) ──▶ web (Next.js :3000) ──▶ engine (Spring :8080, internal only)
-                                                   └─ volume astro-data: users.json
+                                                   └─ volume astro-data: users.json (users, questions, threads, credit ledger)
 ```
 
 Total time: about an hour, most of it waiting for builds.
@@ -70,7 +70,7 @@ cp deploy/.env.example deploy/.env
 cp deploy/web.env.example deploy/web.env
 cp deploy/engine.env.example deploy/engine.env
 openssl rand -base64 48         # paste as AUTH_SECRET in deploy/web.env
-nano deploy/.env                # DOMAIN=your-domain.ro, ACME_EMAIL=your email
+nano deploy/.env                # DOMAIN=cosmictriad.com, ACME_EMAIL=your email
 nano deploy/web.env             # AUTH_SECRET, PRIVACY_CONTROLLER, PRIVACY_EMAIL, check PRIVACY_HOSTING region
 nano deploy/engine.env          # ASTRO_LLM_API_KEY (OpenRouter key)
 chmod 600 deploy/*.env
@@ -85,11 +85,11 @@ docker compose --env-file deploy/.env up -d --build    # first build: 10–20 mi
 docker compose logs -f                                 # Ctrl+C to stop watching
 ```
 
-Then open `https://your-domain.ro`. Caddy fetches the HTTPS certificate on the first request (a few seconds).
+Then open `https://cosmictriad.com`. Caddy fetches the HTTPS certificate on the first request (a few seconds).
 
 Check:
 - `/ro/privacy` shows your name and email and **no red warning**
-- Create an account in `/ro/start`, then download your data on `/ro/me`
+- Get a reading on `/ro`, create an account from the sign-in sheet, then download your data on `/ro/profile`
 - `docker compose ps` shows three containers "running"
 
 ## Day to day

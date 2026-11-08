@@ -3,12 +3,13 @@ package ro.astrosite.engine.ask;
 import java.util.List;
 
 /**
- * Detects questions the site must not answer with an astrological verdict.
+ * Detects questions the site must not answer with an astrological verdict, and requests that are
+ * clearly not about the person's chart or day (answered with a fixed reply, no LLM call, SPEC section 7).
  * Matching is done on the normalized (lower-case, no diacritics) question.
  */
 public final class Guardrails {
 
-    public enum Flag { NONE, DISTRESS, MEDICAL, LEGAL, INVESTMENT }
+    public enum Flag { NONE, DISTRESS, MEDICAL, LEGAL, INVESTMENT, OFF_TOPIC }
 
     private static final List<String> DISTRESS = List.of(
             "sinucid", "suicid", "sa mor", "vreau sa mor", "nu mai vreau sa traiesc", "sa ma omor", "imi fac rau",
@@ -28,6 +29,14 @@ public final class Guardrails {
             "crypto", "bitcoin", "actiuni", "bursa", "stocks", "stock market", "trading", "forex", "etf",
             "investesc", "invest ", "investment", "pariu", "pariez", "bet ", "betting", "loto", "lottery", "casino",
             "jocuri de noroc", "gambling");
+    /** Obvious non-astrology tasks: the engine answers only about the chart and the day. */
+    private static final List<String> OFF_TOPIC = List.of(
+            "write code", "scrie cod", "scrie un cod", " python", "javascript", "typescript", " java ", " sql",
+            " html", " css ", "recipe", "reteta", "retete", "translate", "traduce", "tradu ", "traducere", " poem",
+            "poezie", "essay", "eseu", "homework", "tema de casa", "temele", "weather forecast", "cum e vremea",
+            "capital of", "capitala ", "summarize", "rezuma", "summary of", "news today", "stirile", "football",
+            "fotbal", "solve this", "rezolva ecuatia", "calculate", "calculeaza", "write an email", "scrie un email",
+            "cover letter", "scrisoare de intentie");
 
     public static Flag check(String question) {
         String q = QuestionClassifier.normalize(question);
@@ -35,6 +44,7 @@ public final class Guardrails {
         if (containsAny(q, MEDICAL)) return Flag.MEDICAL;
         if (containsAny(q, LEGAL)) return Flag.LEGAL;
         if (containsAny(q, INVESTMENT)) return Flag.INVESTMENT;
+        if (containsAny(q, OFF_TOPIC)) return Flag.OFF_TOPIC;
         return Flag.NONE;
     }
 

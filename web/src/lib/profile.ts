@@ -130,13 +130,26 @@ export function validateProfile(input: unknown): { ok: true; profile: BirthProfi
   };
 }
 
-/** Life path number, computed client-side for the instant preview while typing. */
-export function lifePath(iso: string): number | null {
-  if (!isRealDate(iso)) return null;
-  const reduce = (n: number): number => {
-    while (n > 9 && n !== 11 && n !== 22 && n !== 33) n = String(n).split("").reduce((a, c) => a + Number(c), 0);
-    return n;
-  };
-  const [y, m, d] = iso.split("-").map(Number);
-  return reduce(reduce(y) + reduce(m) + reduce(d));
+/**
+ * Validates the raw birth payload of an anonymous reading (SPEC section 3.1: name, date required, time optional,
+ * place required for Western; numerology callers send their browser zone and 0,0).
+ */
+export function validateBirth(input: unknown): { ok: true; birth: Birth } | { ok: false; errors: string[] } {
+  const errors: string[] = [];
+  const o = (input ?? {}) as Record<string, unknown>;
+  const date = typeof o.date === "string" ? o.date : "";
+  if (!isRealDate(date) || date < "1900-01-01" || date > new Date().toISOString().slice(0, 10)) errors.push("date");
+  let time: string | null = null;
+  if (o.time != null && o.time !== "") {
+    if (typeof o.time === "string" && TIME_RE.test(o.time)) time = o.time;
+    else errors.push("time");
+  }
+  const zone = typeof o.zone === "string" ? o.zone : "";
+  if (!zone || !isZone(zone)) errors.push("zone");
+  const lat = Number(o.latitude ?? 0);
+  const lon = Number(o.longitude ?? 0);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) errors.push("latitude");
+  if (!Number.isFinite(lon) || lon < -180 || lon > 180) errors.push("longitude");
+  if (errors.length) return { ok: false, errors };
+  return { ok: true, birth: { name: cleanText(o.name, 120), date, time, zone, latitude: Math.round(lat * 1e4) / 1e4, longitude: Math.round(lon * 1e4) / 1e4 } };
 }
