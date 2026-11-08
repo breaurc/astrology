@@ -59,4 +59,4 @@ jobs:
             'cd ~/astrology && bash deploy/update.sh && docker compose --env-file deploy/.env ps'
 
       - name: Smoke test
-        run: curl -fsS -o /dev/null --retry 12 --retry-delay 5 --retry-all-errors https://cosmictriad.com/ro
+        run: curl -fsS -o /dev/null --retry 12 --retry-delay 5 --retry-all-errors https://cosmictriad.com/api/health

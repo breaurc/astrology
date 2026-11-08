@@ -1,6 +1,5 @@
 import { postMessage } from "@/lib/server/features";
+import { logged } from "@/lib/server/log";
 
 export const runtime = "nodejs";
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  return postMessage(req, (await params).id);
-}
+export const POST = logged(async (req: Request, { params }: { params: Promise<{ id: string }> }) => postMessage(req, (await params).id));

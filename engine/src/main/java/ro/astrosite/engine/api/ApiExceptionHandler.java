@@ -1,5 +1,6 @@
 package ro.astrosite.engine.api;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -14,6 +15,12 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private final MeterRegistry meters;
+
+    public ApiExceptionHandler(MeterRegistry meters) {
+        this.meters = meters;
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> invalid(MethodArgumentNotValidException e) {
@@ -30,12 +37,14 @@ public class ApiExceptionHandler {
     /** Daily token ceiling reached: the caller shows a maintenance message (HLD section 6). */
     @ExceptionHandler(BudgetExceededException.class)
     public ResponseEntity<Map<String, Object>> budget(BudgetExceededException e) {
+        meters.counter("api.unavailable", "cause", "budget").increment();
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", "budget", "details", e.getMessage()));
     }
 
     /** Model timeout or provider error: the caller shows a retry message and consumes no quota or credit. */
     @ExceptionHandler(NarrationUnavailableException.class)
     public ResponseEntity<Map<String, Object>> llm(NarrationUnavailableException e) {
+        meters.counter("api.unavailable", "cause", "llm").increment();
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Map.of("error", "llm_unavailable", "details", e.getMessage()));
     }
 }

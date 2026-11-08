@@ -1,5 +1,6 @@
 package ro.astrosite.engine.ask;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -45,11 +46,14 @@ public class NarrationService {
     private final TemplateNarrator template;
     private final FactorTexts texts;
     private final LlmProperties props;
+    private final MeterRegistry meters;
 
     private final AtomicLong tokensToday = new AtomicLong();
     private volatile LocalDate budgetDay = LocalDate.now(ZoneOffset.UTC);
 
-    public NarrationService(LlmClient llm, Prompts prompts, TemplateNarrator template, FactorTexts texts, LlmProperties props) {
+    public NarrationService(LlmClient llm, Prompts prompts, TemplateNarrator template, FactorTexts texts, LlmProperties props,
+                            MeterRegistry meters) {
+        this.meters = meters;
         this.llm = llm;
         this.prompts = prompts;
         this.template = template;
@@ -62,15 +66,15 @@ public class NarrationService {
     public Result reading(ReadingSystem system, String factsText, int score, DayScores.Verdict verdict,
                           List<AskAnswer.Reason> reasons, Locale locale) {
         Result fallback = new Result(template.narrateReading(system, score, verdict, reasons, locale), "template", null);
-        if (!llm.enabled() || overBudget()) return fallback;
+        if (!llm.enabled() || overBudget()) return counted(Mode.READING, fallback);
         String user = "System: " + texts.label("system." + system.name(), locale) + "\n"
                 + "Facts:\n" + factsText + "\n"
                 + "Overall mood: " + verdict + "\n"
                 + "Computed factors (strongest first):\n" + factorLines(reasons);
         try {
-            return run(Mode.READING, List.of(new LlmClient.Message("user", user)), props.maxTokensReading(), locale);
+            return counted(Mode.READING, run(Mode.READING, List.of(new LlmClient.Message("user", user)), props.maxTokensReading(), locale));
         } catch (RuntimeException e) {
-            return fallback;
+            return counted(Mode.READING, fallback);
         }
     }
 
@@ -79,7 +83,7 @@ public class NarrationService {
     public Result answer(String question, Category category, int score, DayScores.Verdict verdict,
                          List<AskAnswer.Reason> reasons, Locale locale) {
         if (!llm.enabled()) {
-            return new Result(template.narrate(question, category, score, verdict, reasons, locale), "template", null);
+            return counted(Mode.ANSWER, new Result(template.narrate(question, category, score, verdict, reasons, locale), "template", null));
         }
         if (overBudget()) throw new BudgetExceededException();
         String user = "Question: " + question + "\n"
@@ -87,7 +91,7 @@ public class NarrationService {
                 + "Score: " + score + "/10 (" + verdict + ")\n"
                 + "Computed factors (strongest first):\n" + factorLines(reasons);
         try {
-            return run(Mode.ANSWER, List.of(new LlmClient.Message("user", user)), props.maxTokensAnswer(), locale);
+            return counted(Mode.ANSWER, run(Mode.ANSWER, List.of(new LlmClient.Message("user", user)), props.maxTokensAnswer(), locale));
         } catch (RuntimeException e) {
             throw new NarrationUnavailableException(e);
         }
@@ -102,7 +106,7 @@ public class NarrationService {
     public Result chat(String context, Category category, int score, DayScores.Verdict verdict,
                        List<AskAnswer.Reason> reasons, List<LlmClient.Message> history, String message, Locale locale) {
         if (!llm.enabled()) {
-            return new Result(template.narrate(message, category, score, verdict, reasons, locale), "template", null);
+            return counted(Mode.CHAT, new Result(template.narrate(message, category, score, verdict, reasons, locale), "template", null));
         }
         if (overBudget()) throw new BudgetExceededException();
         List<LlmClient.Message> messages = new ArrayList<>();
@@ -118,7 +122,7 @@ public class NarrationService {
         }
         messages.add(new LlmClient.Message("user", message));
         try {
-            return run(Mode.CHAT, messages, props.maxTokensChat(), locale);
+            return counted(Mode.CHAT, run(Mode.CHAT, messages, props.maxTokensChat(), locale));
         } catch (RuntimeException e) {
             throw new NarrationUnavailableException(e);
         }
@@ -132,6 +136,15 @@ public class NarrationService {
         log.info("narration mode={} model={} tokens_in={} tokens_out={} latency_ms={}",
                 mode, c.model(), c.tokensIn(), c.tokensOut(), c.latencyMs());
         return new Result(c.text(), "llm", new Usage(c.model(), c.tokensIn(), c.tokensOut(), c.latencyMs()));
+    }
+
+    /** Counts narrations by mode and narrator, and tokens by mode (actuator: narration.calls, narration.tokens). */
+    private Result counted(Mode mode, Result r) {
+        meters.counter("narration.calls", "mode", mode.name().toLowerCase(), "narrator", r.narrator()).increment();
+        if (r.usage() != null) {
+            meters.counter("narration.tokens", "mode", mode.name().toLowerCase()).increment(r.usage().tokensIn() + r.usage().tokensOut());
+        }
+        return r;
     }
 
     private static String factorLines(List<AskAnswer.Reason> reasons) {

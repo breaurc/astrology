@@ -1,7 +1,8 @@
 import { deleteProfile, getProfile, putProfile } from "@/lib/server/auth";
+import { logged } from "@/lib/server/log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const GET = (req: Request) => getProfile(req);
-export const PUT = (req: Request) => putProfile(req);
-export const DELETE = (req: Request) => deleteProfile(req);
+export const GET = logged(getProfile);
+export const PUT = logged(putProfile);
+export const DELETE = logged(deleteProfile);

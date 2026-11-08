@@ -1,4 +1,5 @@
 import { register } from "@/lib/server/auth";
+import { logged } from "@/lib/server/log";
 
 export const runtime = "nodejs";
-export const POST = (req: Request) => register(req);
+export const POST = logged(register);

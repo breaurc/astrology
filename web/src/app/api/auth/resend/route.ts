@@ -1,4 +1,5 @@
 import { resendVerification } from "@/lib/server/auth";
+import { logged } from "@/lib/server/log";
 
 export const runtime = "nodejs";
-export const POST = (req: Request) => resendVerification(req);
+export const POST = logged(resendVerification);

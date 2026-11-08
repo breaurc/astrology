@@ -1,5 +1,6 @@
 import { providers } from "@/lib/server/auth";
+import { logged } from "@/lib/server/log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const GET = () => providers();
+export const GET = logged(() => providers());

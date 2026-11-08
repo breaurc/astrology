@@ -3,10 +3,18 @@
 # Settings: deploy/.env (domain) and deploy/web.env / deploy/engine.env (secrets), see deploy/*.example.
 name: astro
 
+# Docker keeps each container's log on disk; without a cap it grows until the disk is full.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   engine:
     build: ./engine
     restart: unless-stopped
+    logging: *logging
     env_file: deploy/engine.env
     # No published ports: only the web container can reach it, so quotas and credits cannot be bypassed.
     mem_limit: 3g
@@ -15,6 +23,7 @@ services:
     build:
       context: ./web
     restart: unless-stopped
+    logging: *logging
     env_file: deploy/web.env
     environment:
       APP_URL: https://${DOMAIN}
@@ -28,6 +37,7 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    logging: *logging
     ports:
       - "80:80"
       - "443:443"

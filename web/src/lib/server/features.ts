@@ -8,6 +8,7 @@ import type { ReadingSystem } from "../types";
 import { SYSTEMS } from "../types";
 import { cfg } from "./config";
 import { engine, EngineError } from "./engine";
+import { metrics } from "./metrics";
 import { body, clientIp, fail, ipHash, json, localeOf, nextMidnight, sameOrigin } from "./request";
 import { store } from "./store";
 import { birthOf, caller, gate, needBirth, unlimitedQuestions } from "./tier";
@@ -15,7 +16,10 @@ import { createHash } from "node:crypto";
 
 function engineFailure(e: unknown): Response {
   if (e instanceof EngineError) {
-    if (e.status === 503) return fail(503, e.code === "budget" ? "maintenance" : "engine_unavailable", { retry: true });
+    if (e.status === 503) {
+      metrics.inc("engine_unavailable", { cause: e.code });
+      return fail(503, e.code === "budget" ? "maintenance" : "engine_unavailable", { retry: true });
+    }
     if (e.status === 400) return fail(400, "validation", { details: e.details });
     return fail(502, "engine_error");
   }
@@ -41,11 +45,15 @@ export async function postReading(req: Request): Promise<Response> {
     const key = createHash("sha256").update(JSON.stringify([v.birth, system, date, locale])).digest("base64url").slice(0, 24);
     const h = ipHash(clientIp(req), c.today);
     const r = await store.countReading(h, c.today, key, cfg.freeReadingsPerIp);
-    if (!r.ok) return fail(429, "quota", { reason: "free_readings", retryAt: nextMidnight(c.zone), limit: cfg.freeReadingsPerIp });
+    if (!r.ok) {
+      metrics.inc("quota", { reason: "free_readings" });
+      return fail(429, "quota", { reason: "free_readings", retryAt: nextMidnight(c.zone), limit: cfg.freeReadingsPerIp });
+    }
   }
   try {
     const reading = await engine.reading(v.birth, system, date, locale);
     const { usage: _u, ...out } = reading;
+    metrics.inc("readings", { tier: c.tier, system, narrator: reading.narrator });
     return json({ reading: out, tier: c.tier });
   } catch (e) {
     return engineFailure(e);
@@ -109,7 +117,11 @@ export async function postQuestion(req: Request): Promise<Response> {
     userId: c.user!.id, forDate: c.today, locale, question, answer: a.text, category: a.category, score: a.score,
     verdict: a.verdict, guardrail: a.guardrail, model: a.usage?.model, tokensIn: a.usage?.tokensIn, tokensOut: a.usage?.tokensOut,
   }, unlimited);
-  if (!saved) return fail(429, "quota", { reason: "daily_question", retryAt: nextMidnight(c.zone) });
+  if (!saved) {
+    metrics.inc("quota", { reason: "daily_question" });
+    return fail(429, "quota", { reason: "daily_question", retryAt: nextMidnight(c.zone) });
+  }
+  metrics.inc("questions", { narrator: a.narrator, guardrail: a.guardrail });
   return json({ question: saved, reasons: a.reasons, disclaimer: a.disclaimer }, 201);
 }
 
@@ -132,6 +144,7 @@ export async function createThread(req: Request): Promise<Response> {
   const b = await body(req);
   const t = await store.openThread(c.user!.id, cfg.messageCap, localeOf(b.locale, c.user!.locale ?? "ro"));
   if (!t) return fail(402, "payment_required", { reason: "credits" });
+  metrics.inc("threads_opened");
   return json({ thread: t, credits: c.credits - 1 }, 201);
 }
 
@@ -168,6 +181,7 @@ export async function postMessage(req: Request, id: string): Promise<Response> {
   const saved = await store.appendTurn(id, { role: "user", text },
     { role: "assistant", text: turn.text, model: turn.usage?.model, tokensIn: turn.usage?.tokensIn, tokensOut: turn.usage?.tokensOut });
   if (!saved) return fail(409, "closed", { reason: "thread_closed" });
+  metrics.inc("messages", { narrator: turn.narrator, guardrail: turn.guardrail });
   return json({ ...saved, guardrail: turn.guardrail, disclaimer: turn.disclaimer }, 201);
 }
 

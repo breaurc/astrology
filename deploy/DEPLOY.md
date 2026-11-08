@@ -97,13 +97,28 @@ Check:
 | Task | Command (in `~/astro`) |
 |---|---|
 | Deploy new code (after `git push` on your PC) | `bash deploy/update.sh` |
-| Logs | `docker compose logs -f web` (or `engine`, `caddy`) |
+| Logs | `docker compose logs -f web` (or `engine`, `caddy`); capped at 5 x 10 MB per container. Every API call logs one `[req] id=... route status ms tier` line; the same id appears as `rid=` in the engine log |
+| Follow one request across both logs | `docker compose logs web engine \| grep <request id>` (the id is also returned to the browser as `X-Request-Id`) |
+| Today's numbers on demand | `curl -H "Authorization: Bearer $OPS_TOKEN" https://cosmictriad.com/api/ops/summary` (set `OPS_TOKEN` in `deploy/web.env`) |
 | Restart | `docker compose --env-file deploy/.env restart` |
 | Manual backup | `bash deploy/backup.sh` (files in `~/backups`, 14 days kept; nightly via cron) |
 | Restore a backup | `docker run --rm -v astro_astro-data:/data -v ~/backups:/in alpine sh -c "rm -rf /data/* && tar -xzf /in/astro-data-YYYY-MM-DD.tgz -C /data"` then restart |
 | Reset the demo (delete all accounts) | `docker compose --env-file deploy/.env down && docker volume rm astro_astro-data && docker compose --env-file deploy/.env up -d` |
 
 Copy a backup to your PC now and then: `scp ubuntu@<ip>:~/backups/astro-data-*.tgz .`
+
+## Monitoring
+
+- **Uptime**: `https://cosmictriad.com/api/health` answers `200 {"status":"ok","engine":"up"}` and `503` when the
+  engine is down. Point a free external monitor at it (UptimeRobot, Better Stack or a Cloudflare health check),
+  5-minute interval, alert on anything but 200. The deploy workflow's smoke test uses the same URL.
+- **Daily summary**: at 06:00 UTC the web container logs yesterday's accounts, questions, conversations, tokens
+  and credits, and emails the same text to `OPS_EMAIL` when it is set in `deploy/web.env` (needs the Resend
+  settings). It also lists the request counts per route and status since the previous report, plus engine
+  failures by cause (`budget` = daily token ceiling, `llm_unavailable` = model timeout or provider error).
+- **Engine counters**: inside the Docker network, `curl engine:8080/actuator/metrics/narration.calls` (by mode and
+  narrator), `narration.tokens` (by mode) and `api.unavailable` (by cause). From the host:
+  `docker compose exec web wget -qO- http://engine:8080/actuator/metrics/narration.calls`.
 
 ## Troubleshooting
 

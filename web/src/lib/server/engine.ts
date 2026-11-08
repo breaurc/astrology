@@ -6,6 +6,7 @@
 import type { Birth } from "../api";
 import type { CalendarDay, Reading, ReadingSystem, Reason, Verdict } from "../types";
 import { cfg } from "./config";
+import { requestContext } from "./context";
 
 export class EngineError extends Error {
   constructor(public status: number, public code: string, public details?: unknown) {
@@ -29,7 +30,7 @@ async function post<T>(path: string, payload: unknown): Promise<T> {
   try {
     res = await fetch(`${cfg.engineUrl}/api${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(requestContext() ? { "X-Request-Id": requestContext()!.id } : {}) },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(25_000),
     });
@@ -44,6 +45,16 @@ async function post<T>(path: string, payload: unknown): Promise<T> {
 }
 
 export const engine = {
+  /** True when the engine's actuator health endpoint answers UP (3 s budget). */
+  health: async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`${cfg.engineUrl}/actuator/health`, { signal: AbortSignal.timeout(3_000), cache: "no-store" });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  },
+
   reading: (birth: Birth, system: ReadingSystem, date: string, locale: string) =>
     post<Reading & { usage?: Usage | null }>("/reading", { birth, system, date, locale }),
 

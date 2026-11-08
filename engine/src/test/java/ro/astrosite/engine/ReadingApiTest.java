@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 
 import java.util.List;
@@ -93,5 +95,24 @@ class ReadingApiTest {
 
         ResponseEntity<Map> bad = rest.postForEntity("/api/chat", Map.of("birth", BIRTH, "message", ""), Map.class);
         assertEquals(400, bad.getStatusCode().value());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void requestIdIsEchoedAndNarrationCountersAreExposed() {
+        HttpHeaders h = new HttpHeaders();
+        h.set("X-Request-Id", "8a1b2c3d4e5f-FRA");
+        Map<String, Object> req = Map.of("birth", BIRTH, "system", "WESTERN", "date", "2026-11-07", "locale", "en");
+        ResponseEntity<Map> r = rest.postForEntity("/api/reading", new HttpEntity<>(req, h), Map.class);
+        assertEquals(200, r.getStatusCode().value());
+        assertEquals("8a1b2c3d4e5f-FRA", r.getHeaders().getFirst("X-Request-Id"));
+
+        ResponseEntity<Map> noId = rest.postForEntity("/api/reading", req, Map.class);
+        assertTrue(noId.getHeaders().getFirst("X-Request-Id").matches("[0-9a-f]{12}"));
+
+        ResponseEntity<Map> m = rest.getForEntity("/actuator/metrics/narration.calls?tag=mode:reading", Map.class);
+        assertEquals(200, m.getStatusCode().value());
+        List<Map<String, Object>> measurements = (List<Map<String, Object>>) m.getBody().get("measurements");
+        assertTrue(((Number) measurements.get(0).get("value")).doubleValue() >= 1);
     }
 }

@@ -22,6 +22,9 @@ let F: typeof import("../src/lib/server/features");
 let C: typeof import("../src/lib/server/credits");
 let M: typeof import("../src/lib/server/me");
 let E: typeof import("../src/lib/server/engine");
+let O: typeof import("../src/lib/server/ops");
+let L: typeof import("../src/lib/server/log");
+let X: typeof import("../src/lib/server/context");
 
 before(async () => {
   A = await import("../src/lib/server/auth");
@@ -29,6 +32,9 @@ before(async () => {
   C = await import("../src/lib/server/credits");
   M = await import("../src/lib/server/me");
   E = await import("../src/lib/server/engine");
+  O = await import("../src/lib/server/ops");
+  L = await import("../src/lib/server/log");
+  X = await import("../src/lib/server/context");
   // Fake engine: deterministic answers, no network.
   E.engine.reading = async (birth, system, date, locale) => ({
     system, date, facts: { sunSign: "GEMINI" }, score: 7, verdict: "GOOD", reasons: [], text: `${locale} reading for ${birth.date}`,
@@ -273,4 +279,65 @@ test("sign-ups per IP are limited", async () => {
   const third = await A.register(req("/api/auth/register", { method: "POST", ip, body: JSON.stringify({ email: "s3@example.com", password: "password123", consent: true }) }));
   assert.equal(third.status, 429);
   assert.equal((await third.json()).reason, "signups");
+});
+
+test("health: 200 when the engine answers, 503 when it does not", async () => {
+  E.engine.health = async () => true;
+  const up = await O.health();
+  assert.equal(up.status, 200);
+  assert.equal((await up.json()).engine, "up");
+  E.engine.health = async () => false;
+  const down = await O.health();
+  assert.equal(down.status, 503);
+  assert.equal((await down.json()).status, "degraded");
+});
+
+test("request id: the Cloudflare ray is reused, reaches the engine call and comes back in the response", async () => {
+  let seenInEngine: string | undefined;
+  const original = E.engine.reading;
+  E.engine.reading = async (...a) => { seenInEngine = X.requestContext()?.id; return original(...a); };
+  const handler = L.logged(F.postReading);
+  const r = await handler(req("/api/readings", { method: "POST", ip: "203.0.113.99", headers: { "cf-ray": "8a1b2c3d4e5f-FRA" },
+    body: JSON.stringify({ birth: BIRTH, system: "WESTERN" }) }));
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get("x-request-id"), "8a1b2c3d4e5f-FRA");
+  assert.equal(seenInEngine, "8a1b2c3d4e5f-FRA");
+  E.engine.reading = original;
+  const generated = await handler(req("/api/readings", { method: "POST", ip: "203.0.113.98", body: JSON.stringify({ birth: BIRTH, system: "WESTERN" }) }));
+  assert.match(generated.headers.get("x-request-id") ?? "", /^[0-9a-f]{12}$/);
+});
+
+test("route labels hide ids and tokens", () => {
+  assert.equal(L.routeLabel(new Request("http://x/api/threads/0b7a1d2e-1111-4222-8333-444455556666/messages")), "/api/threads/:id/messages");
+  assert.equal(L.routeLabel(new Request("http://x/api/auth/verify?token=abc")), "/api/auth/verify");
+});
+
+test("daily summary counts the day's questions, threads, tokens and credits; the ops route needs the token", async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const s = await O.summary(today);
+  assert.ok(s.usersTotal >= 3);
+  assert.ok(s.questions >= 1);
+  assert.ok(s.tokens >= 30, "tokens from the fake LLM answer are summed");
+  // The conversation test deletes its account (cascade), so threads are counted on a fresh one here.
+  const cookie = await signUp("summary@example.com", "198.51.100.77");
+  await A.putProfile(req("/api/profile", { method: "PUT", cookie, body: JSON.stringify({ profile: PROFILE }) }));
+  await C.checkout(req("/api/credits/checkout", { method: "POST", cookie, body: JSON.stringify({ packageId: "single" }) }));
+  const opened = await F.createThread(req("/api/threads", { method: "POST", cookie, body: "{}" }));
+  assert.equal(opened.status, 201);
+  const s2 = await O.summary(today);
+  assert.ok(s2.threadsOpened >= 1);
+  assert.ok(s2.purchases >= 1);
+  assert.ok(s2.openThreads >= 1);
+  assert.ok(s2.creditsOutstanding >= 0);
+  assert.ok(Object.keys(s.counters).some((k) => k.startsWith("http{")), "request counters are present");
+  const text = O.formatSummary(s);
+  assert.match(text, /Questions: \d+/);
+
+  delete process.env.OPS_TOKEN;
+  assert.equal((await O.opsSummary(req("/api/ops/summary"))).status, 404);
+  process.env.OPS_TOKEN = "secret-token";
+  assert.equal((await O.opsSummary(req("/api/ops/summary"))).status, 401);
+  const ok = await O.opsSummary(req(`/api/ops/summary?day=${today}`, { headers: { authorization: "Bearer secret-token" } }));
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).day, today);
 });

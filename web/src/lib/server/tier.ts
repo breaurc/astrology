@@ -9,6 +9,7 @@ import { toBirth } from "../profile";
 import { currentUser } from "./auth";
 import { cfg, stripeEnabled } from "./config";
 import { clientZone, fail, localDate, nextMidnight } from "./request";
+import { note } from "./context";
 import { store, toPublic, type UserRecord } from "./store";
 
 export interface Caller {
@@ -23,9 +24,14 @@ export async function caller(req: Request): Promise<Caller> {
   const zone = clientZone(req);
   const today = localDate(zone);
   const user = await currentUser(req);
-  if (!user) return { user: null, tier: "anonymous", credits: 0, zone, today };
+  if (!user) {
+    note({ tier: "anonymous" });
+    return { user: null, tier: "anonymous", credits: 0, zone, today };
+  }
   const credits = await store.credits(user.id);
-  return { user, tier: credits > 0 ? "paid" : "user", credits, zone, today };
+  const tier: Tier = credits > 0 ? "paid" : "user";
+  note({ tier });
+  return { user, tier, credits, zone, today };
 }
 
 const RANK: Record<Tier, number> = { anonymous: 0, user: 1, paid: 2 };

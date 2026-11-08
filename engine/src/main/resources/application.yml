@@ -35,4 +35,9 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
+
+logging:
+  # The web tier's request id (X-Request-Id) on every line, so one request can be followed across both logs.
+  pattern:
+    level: "%5p [rid=%X{rid:--}]"

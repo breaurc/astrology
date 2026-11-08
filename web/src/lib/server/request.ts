@@ -2,6 +2,7 @@
  * Small helpers shared by the route handlers: JSON responses, client IP hashing, the caller's local date.
  */
 import { createHash } from "node:crypto";
+import { note } from "./context";
 import { getSecret } from "./secret";
 
 export function json(body: unknown, status = 200, headers: HeadersInit = {}): Response {
@@ -13,6 +14,7 @@ export function json(body: unknown, status = 200, headers: HeadersInit = {}): Re
 
 /** A machine-readable failure the frontend maps to a gate or a message (HLD section 3). */
 export function fail(status: number, error: string, extra: Record<string, unknown> = {}): Response {
+  note({ code: typeof extra.reason === "string" ? `${error}:${extra.reason}` : error });
   return json({ error, ...extra }, status);
 }
 

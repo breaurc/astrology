@@ -121,6 +121,18 @@ cd engine && mvn test                      # ephemeris, numerology, scoring, gua
 cd web && npx tsx --test tests/*.test.ts   # accounts, verification, OAuth round-trips, GDPR; readings quota, gates, question quota, credits, threads, Stripe webhook
 ```
 
+## Logs and observability
+
+- One line per API request in the web log: `[req] id=<request id> POST /api/readings 200 123ms tier=anonymous code=...`.
+  Ids and tokens in paths are masked, no IP or user id is logged. The id is forwarded to the engine as
+  `X-Request-Id`, appears as `rid=` on every engine log line and is returned to the browser.
+- `GET /api/health`: 200 when the engine answers, 503 otherwise; for the uptime monitor and the deploy smoke test.
+- Daily summary (06:00 UTC, `lib/server/ops.ts`): accounts, questions, conversations, tokens and credits from the
+  store, plus in-process counters (requests by route and status, readings by tier, quota hits, engine failures by
+  cause). Logged, emailed to `OPS_EMAIL`, and available on demand at `GET /api/ops/summary` with `OPS_TOKEN`.
+- Engine counters via Micrometer on the internal actuator: `narration.calls`, `narration.tokens`, `api.unavailable`.
+- Docker log files are capped in `docker-compose.yml`. Caddy access logging stays off (no visitor IPs on disk).
+
 ## Deploy
 
 Docker Compose + Caddy on the Oracle Cloud VM: see [deploy/DEPLOY.md](deploy/DEPLOY.md). `ENGINE_URL` is a runtime

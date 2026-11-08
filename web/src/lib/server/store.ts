@@ -46,6 +46,23 @@ interface DB {
   ipQuota: IpQuotaRecord[];
 }
 
+/** Durable numbers for one UTC day (createdAt prefix) plus a few totals; feeds the daily summary. */
+export interface DayStats {
+  usersTotal: number;
+  verifiedUsers: number;
+  newUsers: number;
+  questions: number;
+  llmAnswers: number;
+  threadsOpened: number;
+  userMessages: number;
+  openThreads: number;
+  tokens: number;
+  purchases: number;
+  creditsSold: number;
+  creditsRefunded: number;
+  creditsOutstanding: number;
+}
+
 const EMPTY: DB = { users: [], questions: [], threads: [], messages: [], ledger: [], stripeEvents: [], ipQuota: [] };
 
 let queue: Promise<unknown> = Promise.resolve();
@@ -430,6 +447,31 @@ export const store = {
       q.readings += 1;
       q.keys = [...q.keys, key].slice(-50);
       return { ok: true, record: q };
+    });
+  },
+
+  stats(day: string): Promise<DayStats> {
+    return read((db) => {
+      const on = (r: { createdAt: string }) => r.createdAt.startsWith(day);
+      const questions = db.questions.filter(on);
+      const messages = db.messages.filter(on);
+      const ledger = db.ledger.filter(on);
+      const tokensOf = (rs: { tokensIn?: number; tokensOut?: number }[]) => rs.reduce((n, r) => n + (r.tokensIn ?? 0) + (r.tokensOut ?? 0), 0);
+      return {
+        usersTotal: db.users.length,
+        verifiedUsers: db.users.filter((u) => u.emailVerified !== false).length,
+        newUsers: db.users.filter(on).length,
+        questions: questions.length,
+        llmAnswers: questions.filter((q) => q.model).length + messages.filter((m) => m.role === "assistant" && m.model).length,
+        threadsOpened: db.threads.filter(on).length,
+        userMessages: messages.filter((m) => m.role === "user").length,
+        openThreads: db.threads.filter((t) => t.status === "open").length,
+        tokens: tokensOf(questions) + tokensOf(messages),
+        purchases: ledger.filter((l) => l.reason === "purchase").length,
+        creditsSold: ledger.filter((l) => l.reason === "purchase").reduce((n, l) => n + l.delta, 0),
+        creditsRefunded: ledger.filter((l) => l.reason === "refund").reduce((n, l) => n + l.delta, 0),
+        creditsOutstanding: db.ledger.reduce((n, l) => n + l.delta, 0),
+      };
     });
   },
 
