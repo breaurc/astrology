@@ -32,7 +32,7 @@ async function post<T>(path: string, payload: unknown): Promise<T> {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(requestContext() ? { "X-Request-Id": requestContext()!.id } : {}) },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(40_000), // above the engine's 30 s LLM timeout so its 503 arrives, not our abort
     });
   } catch (e) {
     throw new EngineError(503, "engine_unreachable", e instanceof Error ? e.message : String(e));

@@ -25,11 +25,13 @@ astro:
     model: ${ASTRO_LLM_MODEL:}                      # empty = per-provider default (see LlmProperties)
     fallback-model: ${ASTRO_LLM_FALLBACK_MODEL:}    # tried when the main model errors or times out
     base-url: ${ASTRO_LLM_BASE_URL:}                # empty = per-provider default
-    timeout-ms: ${ASTRO_LLM_TIMEOUT_MS:20000}       # per call (HLD section 6)
+    timeout-ms: ${ASTRO_LLM_TIMEOUT_MS:30000}       # per call; thinking models need the headroom (the web tier waits 40 s)
     daily-token-ceiling: ${ASTRO_LLM_DAILY_TOKENS:0}  # 0 = unlimited; when reached, readings use templates, answer/chat return 503
     max-tokens-reading: ${ASTRO_LLM_MAX_TOKENS_READING:400}
     max-tokens-answer: ${ASTRO_LLM_MAX_TOKENS_ANSWER:700}
     max-tokens-chat: ${ASTRO_LLM_MAX_TOKENS_CHAT:900}
+    reasoning: ${ASTRO_LLM_REASONING:on}           # openrouter: on | low | medium | high | off (hidden thinking of a reasoning model)
+    reasoning-tokens: ${ASTRO_LLM_REASONING_TOKENS:1500}  # thinking budget added on top of each max-tokens-* cap
 
 management:
   endpoints:

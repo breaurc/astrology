@@ -31,8 +31,10 @@ LLM narration is optional (templates otherwise). Copy `engine/.env.example` to `
 ASTRO_LLM_PROVIDER=openrouter          # or anthropic
 ASTRO_LLM_API_KEY=sk-or-...
 ASTRO_LLM_MODEL=deepseek/deepseek-v4-flash
+ASTRO_LLM_REASONING=on                 # on | low | medium | high | off: hidden thinking of a reasoning model
+ASTRO_LLM_REASONING_TOKENS=1500        # thinking budget on top of each answer cap
 ASTRO_LLM_FALLBACK_MODEL=              # tried on errors / timeouts
-ASTRO_LLM_TIMEOUT_MS=20000
+ASTRO_LLM_TIMEOUT_MS=30000
 ASTRO_LLM_DAILY_TOKENS=0               # daily ceiling; 0 = unlimited
 ```
 

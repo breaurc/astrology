@@ -10,6 +10,7 @@ import ro.astrosite.engine.config.LlmProperties;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -101,10 +102,22 @@ public class LlmClient {
     /** OpenRouter (OpenAI-compatible): POST /api/v1/chat/completions with a Bearer token. */
     @SuppressWarnings("unchecked")
     private Completion openRouter(String model, String system, List<Message> messages, int maxTokens) {
+        return openRouter(model, system, messages, maxTokens, props.thinking());
+    }
+
+    /**
+     * @param thinking send the configured reasoning budget on top of the answer cap; false sends reasoning off with the
+     *                 plain cap (the retry path when a model spent everything on hidden thinking anyway)
+     */
+    private Completion openRouter(String model, String system, List<Message> messages, int maxTokens, boolean thinking) {
         List<Map<String, String>> msgs = new ArrayList<>();
         msgs.add(Map.of("role", "system", "content", system));
         for (Message m : messages) msgs.add(Map.of("role", m.role(), "content", m.content()));
-        Map<String, Object> body = Map.of("model", model, "max_tokens", maxTokens, "messages", msgs);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", model);
+        body.put("max_tokens", thinking ? props.budget(maxTokens) : maxTokens);
+        body.put("messages", msgs);
+        body.put("reasoning", thinking ? props.reasoningParam() : Map.of("enabled", false));
         Map<String, Object> resp = client.post()
                 .uri("/api/v1/chat/completions")
                 .header("Authorization", "Bearer " + props.apiKey())
@@ -123,12 +136,25 @@ public class LlmClient {
         Object content = message.get("content");
         if (content == null || content.toString().isBlank()) {
             log.warn("OpenRouter ({}) returned empty content: finish_reason={}, usage={}", model, choice.get("finish_reason"), usage);
+            if (thinking && "length".equals(choice.get("finish_reason")) && reasoningTokens(usage) > 0) {
+                log.warn("OpenRouter ({}) spent max_tokens={} on hidden reasoning ({} tokens); retrying once without thinking "
+                        + "(raise ASTRO_LLM_REASONING_TOKENS if this repeats)", model, props.budget(maxTokens), reasoningTokens(usage));
+                return openRouter(model, system, messages, maxTokens, false);
+            }
             return null;
         }
         if ("length".equals(choice.get("finish_reason"))) {
-            log.warn("OpenRouter ({}) hit max_tokens={}, answer may be truncated", model, maxTokens);
+            log.warn("OpenRouter ({}) hit max_tokens={} (reasoning {} tokens), answer may be truncated", model,
+                    thinking ? props.budget(maxTokens) : maxTokens, reasoningTokens(usage));
         }
         return new Completion(content.toString(), model, num(usage, "prompt_tokens"), num(usage, "completion_tokens"), 0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int reasoningTokens(Map<String, Object> usage) {
+        if (usage == null) return 0;
+        Object details = usage.get("completion_tokens_details");
+        return details instanceof Map<?, ?> d ? num((Map<String, Object>) d, "reasoning_tokens") : 0;
     }
 
     private static int num(Map<String, Object> m, String key) {
