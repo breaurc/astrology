@@ -2,6 +2,7 @@
 
 import { ANIMALS, CATEGORIES, ELEMENTS, PLANETS, RELATIONS, SIGNS, SIGN_GLYPHS, fill, longDate, t, type Locale } from "@/lib/i18n";
 import { SYSTEMS, type Reading, type ReadingSystem } from "@/lib/types";
+import SkyWheel from "../SkyWheel";
 
 interface Props {
   locale: Locale;
@@ -38,6 +39,7 @@ export default function ReadingCard({ locale, reading, system, onSystem, name, b
       {reading
         ? <p className="reading-text" style={busy ? { opacity: 0.5 } : undefined}>{reading.text}</p>
         : <p className="reading-text muted"><span className="spinner" aria-hidden /> {d.landing.busy}</p>}
+      {reading?.sky && <SkyWheel sky={reading.sky} locale={locale} />}
       <p className="reading-note">{r.note}</p>
     </section>
   );

@@ -14,6 +14,7 @@ import BirthForm from "../landing/BirthForm";
 import CalendarStrip from "./CalendarStrip";
 import QuestionBox from "./QuestionBox";
 import ConversationPanel from "./ConversationPanel";
+import SkyCard from "./SkyCard";
 
 /** Signed-in home (SPEC section 4): 7-day calendar, today's detail, the daily question and the conversation entry. */
 export default function AppHome({ locale }: { locale: Locale }) {
@@ -55,7 +56,10 @@ export default function AppHome({ locale }: { locale: Locale }) {
             <BirthDataStep locale={locale} onSaved={async () => { set(await refresh()); }} />
           ) : (
             <div className="app-grid">
-              <CalendarStrip locale={locale} days={days} selected={selected} onSelect={setSelected} error={calError} />
+              <div className="stack loose">
+                <CalendarStrip locale={locale} days={days} selected={selected} onSelect={setSelected} error={calError} />
+                <SkyCard locale={locale} date={selected ?? todayIso()} />
+              </div>
               <div className="stack loose">
                 <QuestionBox locale={locale} today={today} unlimited={unlimited} conversationHref={`/${locale}/credits`}
                   onAnswered={(q) => { setToday(q); refresh(); }} />

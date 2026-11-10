@@ -84,6 +84,15 @@ const dict = {
     footer: { copyright: "© cosmictriad.com", privacy: "Privacy", terms: "Terms", fun: "For entertainment purposes" },
     verdict: { GOOD: "Favourable", MIXED: "Mixed", CAUTION: "Careful" } as Record<string, string>,
     phase: { new: "New Moon", waxing: "Waxing Moon", full: "Full Moon", waning: "Waning Moon", balsamic: "Dark Moon" } as Record<string, string>,
+    sky: {
+      titleDay: "The sky on {date} over your chart",
+      outer: "outer ring: the planets that day", inner: "inner ring: your birth chart",
+      noTime: "Birth time unknown: the wheel starts at 0° Aries and houses are not shown.",
+      aspects: "Aspects to your chart", none: "No close aspects that day.",
+      pattern: "{transit} {aspect} your {natal}", orb: "{orb}° orb",
+      retro: "retrograde", house: "house", asc: "ASC", mc: "MC",
+      loading: "Drawing the sky…", unavailable: "The sky could not be drawn right now.",
+    },
     source: { WESTERN: "Western", CHINESE: "Chinese", NUMEROLOGY: "Numerology" } as Record<string, string>,
     disclaimer: "For entertainment purposes only.",
   },
@@ -168,6 +177,15 @@ const dict = {
     footer: { copyright: "© cosmictriad.com", privacy: "Confidențialitate", terms: "Termeni", fun: "Doar în scop de divertisment" },
     verdict: { GOOD: "Favorabilă", MIXED: "Mixtă", CAUTION: "Cu grijă" } as Record<string, string>,
     phase: { new: "Lună Nouă", waxing: "Lună în creștere", full: "Lună Plină", waning: "Lună în descreștere", balsamic: "Lună neagră" } as Record<string, string>,
+    sky: {
+      titleDay: "Cerul din {date} peste harta ta",
+      outer: "inelul exterior: planetele din acea zi", inner: "inelul interior: harta ta natală",
+      noTime: "Ora nașterii necunoscută: roata începe la 0° Berbec, iar casele nu sunt afișate.",
+      aspects: "Aspecte cu harta ta", none: "Niciun aspect strâns în acea zi.",
+      pattern: "{transit} {aspect} {natal} natal", orb: "orb {orb}°",
+      retro: "retrograd", house: "casa", asc: "ASC", mc: "MC",
+      loading: "Desenăm cerul…", unavailable: "Cerul nu a putut fi desenat acum.",
+    },
     source: { WESTERN: "Occidental", CHINESE: "Chinezesc", NUMEROLOGY: "Numerologie" } as Record<string, string>,
     disclaimer: "Doar în scop de divertisment.",
   },
@@ -234,4 +252,18 @@ export const CATEGORIES: Record<Locale, Record<string, string>> = {
 export const SIGN_GLYPHS: Record<string, string> = {
   ARIES: "♈", TAURUS: "♉", GEMINI: "♊", CANCER: "♋", LEO: "♌", VIRGO: "♍", LIBRA: "♎", SCORPIO: "♏",
   SAGITTARIUS: "♐", CAPRICORN: "♑", AQUARIUS: "♒", PISCES: "♓",
+};
+
+export const SIGN_ORDER = ["ARIES", "TAURUS", "GEMINI", "CANCER", "LEO", "VIRGO", "LIBRA", "SCORPIO", "SAGITTARIUS", "CAPRICORN", "AQUARIUS", "PISCES"];
+
+export const PLANET_GLYPHS: Record<string, string> = {
+  SUN: "☉", MOON: "☽", MERCURY: "☿", VENUS: "♀", MARS: "♂", JUPITER: "♃", SATURN: "♄", URANUS: "♅", NEPTUNE: "♆", PLUTO: "♇",
+};
+
+export const ASPECT_GLYPHS: Record<string, string> = { CONJUNCTION: "☌", SEXTILE: "⚹", SQUARE: "□", TRINE: "△", OPPOSITION: "☍" };
+
+/** Aspect words as they read inside sky.pattern: "Saturn trine your Mercury" / "Saturn în trigon cu Mercur natal". */
+export const ASPECTS: Record<Locale, Record<string, string>> = {
+  en: { CONJUNCTION: "conjunct", SEXTILE: "sextile", SQUARE: "square", TRINE: "trine", OPPOSITION: "opposite" },
+  ro: { CONJUNCTION: "în conjuncție cu", SEXTILE: "în sextil cu", SQUARE: "în cuadratură cu", TRINE: "în trigon cu", OPPOSITION: "în opoziție cu" },
 };

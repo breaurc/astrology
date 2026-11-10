@@ -36,9 +36,16 @@ before(async () => {
   L = await import("../src/lib/server/log");
   X = await import("../src/lib/server/context");
   // Fake engine: deterministic answers, no network.
+  const BODIES = ["SUN", "MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN", "URANUS", "NEPTUNE", "PLUTO"];
+  E.engine.sky = async (_b, date) => ({
+    date, timeKnown: true, ascendant: 100, midheaven: 10, houseCusps: Array.from({ length: 12 }, (_, i) => (90 + 30 * i) % 360), moonPhase: "new",
+    natal: BODIES.map((body, i) => ({ body, longitude: i * 36, sign: "ARIES", degree: 0, retrograde: false, house: 1 })),
+    transit: BODIES.map((body, i) => ({ body, longitude: (i * 36 + 120) % 360, sign: "LEO", degree: 0, retrograde: body === "MERCURY", house: 5 })),
+    aspects: [{ transit: "SATURN", natal: "MERCURY", aspect: "TRINE", orb: 0.4, nature: 1 }],
+  });
   E.engine.reading = async (birth, system, date, locale) => ({
     system, date, facts: { sunSign: "GEMINI" }, score: 7, verdict: "GOOD", reasons: [], text: `${locale} reading for ${birth.date}`,
-    narrator: "template", disclaimer: "fun", usage: null,
+    narrator: "template", disclaimer: "fun", usage: null, sky: system === "WESTERN" ? await E.engine.sky(birth, date) : null,
   });
   E.engine.calendar = async (_b, from, days) => ({
     from, days: Array.from({ length: days }, (_, i) => ({ date: addDays(from, i), score: 6, verdict: "MIXED", good: ["LOVE"], avoid: ["MONEY"], scores: {}, reasons: [] })),
@@ -340,4 +347,29 @@ test("daily summary counts the day's questions, threads, tokens and credits; the
   const ok = await O.opsSummary(req(`/api/ops/summary?day=${today}`, { headers: { authorization: "Bearer secret-token" } }));
   assert.equal(ok.status, 200);
   assert.equal((await ok.json()).day, today);
+});
+
+test("sky wheel: needs an account and birth data, follows the asked day; the western reading carries it", async () => {
+  const anon = await F.getSky(req("/api/sky"));
+  assert.equal(anon.status, 401);
+  const c = await signUp("sky@example.com", "198.51.100.44");
+  assert.equal((await F.getSky(req("/api/sky", { cookie: c }))).status, 409);
+  await A.putProfile(req("/api/profile", { method: "PUT", cookie: c, body: JSON.stringify({ profile: PROFILE }) }));
+
+  const r = await F.getSky(req("/api/sky?date=2026-11-07", { cookie: c }));
+  assert.equal(r.status, 200);
+  const s = await r.json();
+  assert.equal(s.date, "2026-11-07");
+  assert.equal(s.natal.length, 10);
+  assert.equal(s.transit.length, 10);
+  assert.deepEqual(s.aspects[0], { transit: "SATURN", natal: "MERCURY", aspect: "TRINE", orb: 0.4, nature: 1 });
+  // a malformed date falls back to today
+  const today = await (await F.getSky(req("/api/sky?date=nope", { cookie: c }))).json();
+  assert.match(today.date, /^\d{4}-\d{2}-\d{2}$/);
+
+  // the free western reading carries the same drawing data; other systems do not
+  const w = await (await F.postReading(req("/api/readings", { method: "POST", ip: "203.0.113.150", body: JSON.stringify({ birth: BIRTH, system: "WESTERN" }) }))).json();
+  assert.equal(w.reading.sky.aspects.length, 1);
+  const n = await (await F.postReading(req("/api/readings", { method: "POST", ip: "203.0.113.150", body: JSON.stringify({ birth: BIRTH, system: "CHINESE" }) }))).json();
+  assert.equal(n.reading.sky, null);
 });

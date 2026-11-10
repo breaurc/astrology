@@ -2,7 +2,7 @@
 
 import type { Birth } from "./api";
 import type { BirthProfile, SessionInfo } from "./profile";
-import type { CalendarDay, CreditPackage, LedgerEntry, MeInfo, MessageRecord, QuestionRecord, Reading, ReadingSystem, ThreadRecord } from "./types";
+import type { CalendarDay, CreditPackage, LedgerEntry, MeInfo, MessageRecord, QuestionRecord, Reading, ReadingSystem, Sky, ThreadRecord } from "./types";
 
 /**
  * Browser-side calls to the site's own API (same origin, cookie session). Every request carries the browser's
@@ -55,6 +55,7 @@ export const account = {
     call<{ reading: Reading; tier: string }>("/api/readings", post({ birth, system, date, locale })),
   calendar: (from: string, locale: string) =>
     call<{ from: string; days: CalendarDay[] }>(`/api/calendar?${new URLSearchParams({ from, locale })}`),
+  sky: (date: string) => call<Sky>(`/api/sky?date=${encodeURIComponent(date)}`),
   questions: () => call<{ today: QuestionRecord | null; history: QuestionRecord[]; date: string; unlimited: boolean }>("/api/questions"),
   ask: (question: string, locale: string) =>
     call<{ question: QuestionRecord; reasons: unknown[]; disclaimer: string }>("/api/questions", post({ question, locale })),

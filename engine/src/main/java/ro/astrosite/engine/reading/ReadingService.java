@@ -4,10 +4,12 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import ro.astrosite.engine.ask.AskAnswer;
 import ro.astrosite.engine.ask.FactorTexts;
+import ro.astrosite.engine.api.dto.SkyResponse;
 import ro.astrosite.engine.ask.NarrationService;
 import ro.astrosite.engine.astro.BirthData;
 import ro.astrosite.engine.astro.ChartCalculator;
 import ro.astrosite.engine.astro.NatalChart;
+import ro.astrosite.engine.astro.Transits;
 import ro.astrosite.engine.chinese.ChineseProfile;
 import ro.astrosite.engine.chinese.ChineseService;
 import ro.astrosite.engine.chinese.DayAlmanac;
@@ -38,10 +40,11 @@ public class ReadingService {
     /**
      * @param facts   computed, system-specific facts as enum keys the frontend localizes (sunSign, animal, lifePath …)
      * @param reasons the factors behind the mood, strongest first, localized
+     * @param sky     the day's planets over the natal chart, for the wheel; only with the western reading
      */
     public record Reading(ReadingSystem system, LocalDate date, Map<String, Object> facts, int score,
                           DayScores.Verdict verdict, List<AskAnswer.Reason> reasons, String text, String narrator,
-                          String disclaimer, NarrationService.Usage usage) {}
+                          String disclaimer, NarrationService.Usage usage, SkyResponse sky) {}
 
     private final ChartCalculator calculator = new ChartCalculator();
     private final ChineseService chinese;
@@ -73,7 +76,14 @@ public class ReadingService {
 
         NarrationService.Result n = narration.reading(system, factsText(system, facts, locale), score, verdict, reasons, locale);
         return new Reading(system, date, facts, score, verdict, reasons, n.text(), n.narrator(),
-                texts.message("disclaimer", locale), n.usage());
+                texts.message("disclaimer", locale), n.usage(), system == ReadingSystem.WESTERN ? sky(birth, date) : null);
+    }
+
+    /** The day's sky over the natal chart (positions, natal houses, transit aspects). Pure computation. */
+    public SkyResponse sky(BirthData birth, LocalDate date) {
+        NatalChart natal = calculator.compute(birth);
+        NatalChart transit = calculator.compute(Transits.noon(birth, date));
+        return SkyResponse.of(natal, transit, date);
     }
 
     /** Facts for all three systems in one map; used as chat context and by the profile page. */

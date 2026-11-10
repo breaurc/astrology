@@ -6,6 +6,7 @@ import ro.astrosite.engine.astro.BirthData;
 import ro.astrosite.engine.astro.ChartCalculator;
 import ro.astrosite.engine.astro.NatalChart;
 import ro.astrosite.engine.astro.Planet;
+import ro.astrosite.engine.astro.Transits;
 import ro.astrosite.engine.astro.Angles;
 import ro.astrosite.engine.chinese.ChineseProfile;
 import ro.astrosite.engine.chinese.ChineseService;
@@ -14,7 +15,6 @@ import ro.astrosite.engine.numerology.Numerology;
 import ro.astrosite.engine.numerology.NumerologyProfile;
 
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,8 +35,7 @@ public class DayScoreService {
     public DayScores scores(BirthData birth, LocalDate date) {
         NatalChart natal = calculator.compute(birth);
         // transit snapshot at local noon in the person's zone
-        BirthData dayData = new BirthData(null, date, LocalTime.NOON, birth.zone(), birth.latitude(), birth.longitude());
-        NatalChart transit = calculator.compute(dayData);
+        NatalChart transit = calculator.compute(Transits.noon(birth, date));
 
         ChineseProfile profile = chinese.profile(birth);
         DayAlmanac almanac = chinese.almanac(date, profile);

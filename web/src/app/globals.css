@@ -330,3 +330,48 @@ table.plain td { padding: 6px 4px; border-bottom: 1px solid var(--line-soft); }
 .legal code { font-size: 13px; color: var(--lavender); }
 @media (max-width: 560px) { .legal table, .legal thead, .legal tbody, .legal tr, .legal th, .legal td { display: block; } .legal thead { display: none; }
   .legal td { border: 0; padding: 2px 0; } .legal tr { border-bottom: 1px solid var(--line); padding: 8px 0; } }
+
+/* ---------- sky wheel ---------- */
+.sky { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.sky svg { width: 100%; max-width: 400px; aspect-ratio: 1; display: block; margin: 0 auto; overflow: visible;
+  font-family: "Segoe UI Symbol", "Noto Sans Symbols", "Noto Sans Symbols 2", "Apple Symbols", var(--sans); }
+.sky.compact svg { max-width: 300px; }
+.sky .ring { fill: none; stroke: var(--line); stroke-width: 1; }
+.sky .ring.soft { stroke: var(--line-soft); }
+.sky .tick { stroke: var(--line); stroke-width: 1; }
+.sky .cusp { stroke: var(--line-soft); stroke-width: 1; }
+.sky .cusp.angle { stroke: var(--handle); stroke-width: 1.5; }
+.sky .sign { fill: var(--muted); font-size: 15px; }
+.sky .house-no { fill: var(--faint); font-size: 9px; font-family: var(--sans); }
+.sky .angle-label { fill: var(--muted); font-size: 10px; font-family: var(--sans); letter-spacing: 0.04em; }
+.sky .planet { font-size: 18px; }
+.sky.compact .planet { font-size: 20px; }
+.sky .planet.transit { fill: var(--gold); }
+.sky .planet.natal { fill: var(--text); }
+.sky .rx { fill: var(--muted); font-size: 8px; font-family: var(--sans); font-weight: 600; }
+.sky .mark.transit { stroke: var(--gold); stroke-width: 1.5; }
+.sky .mark.natal { fill: var(--text-2); }
+.sky .aspect { stroke-width: 1.2; opacity: 0.55; transition: opacity 0.15s, stroke-width 0.15s; }
+.sky .aspect.pos { stroke: var(--gold); }
+.sky .aspect.neg { stroke: var(--lavender); }
+.sky .aspect.conj { stroke: var(--text-2); stroke-dasharray: 3 3; }
+.sky.has-active .aspect:not(.active) { opacity: 0.12; }
+.sky .aspect.active { opacity: 1; stroke-width: 2.4; }
+.sky-legend { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; font-size: 12px; color: var(--muted); }
+.sky-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.sky-legend .transit i { background: var(--gold); }
+.sky-legend .natal i { background: var(--text); }
+.sky-legend .wide { flex-basis: 100%; text-align: center; }
+.sky-aspects { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 13.5px; }
+.sky-aspects button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; padding: 6px 8px; border-radius: 8px; cursor: pointer; color: var(--text-2); }
+.sky-aspects button:hover, .sky-aspects button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); }
+.sky-aspects .glyph { width: 18px; text-align: center; font-family: "Segoe UI Symbol", "Noto Sans Symbols", "Noto Sans Symbols 2", "Apple Symbols", var(--sans); }
+.sky-aspects .pos .glyph { color: var(--gold); }
+.sky-aspects .neg .glyph { color: var(--lavender); }
+.sky-aspects small { margin-left: auto; color: var(--muted); white-space: nowrap; }
+.sky-placeholder { width: 100%; max-width: 400px; aspect-ratio: 1; margin: 0 auto; border-radius: 50%; border: 1px dashed var(--line); }
+.sky-card.compact .sky-placeholder { max-width: 300px; }
+
+/* chat with the day's sky beside it */
+.chat-wrap { display: grid; gap: 20px; align-items: start; }
+@media (min-width: 900px) { .chat-wrap { grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; } .chat-aside { position: sticky; top: 24px; } }

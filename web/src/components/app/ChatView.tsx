@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { account, AccountError } from "@/lib/account";
 import { fill, t, type Locale } from "@/lib/i18n";
+import { todayIso } from "@/lib/inputs";
 import type { MessageRecord, ThreadRecord } from "@/lib/types";
 import { useMe } from "../MeProvider";
 import SiteHeader from "../SiteHeader";
 import SiteFooter from "../SiteFooter";
+import SkyCard from "./SkyCard";
 
 /** One conversation thread (SPEC section 3.4): messages, counter, composer; read-only once closed. */
 export default function ChatView({ locale, threadId }: { locale: Locale; threadId: string }) {
@@ -79,7 +81,8 @@ export default function ChatView({ locale, threadId }: { locale: Locale; threadI
     <div className="page">
       <SiteHeader locale={locale} />
       <main className="main">
-        <div className="wrap chat" style={{ maxWidth: 760 }}>
+        <div className="wrap chat-wrap">
+          <div className="chat">
           <div className="between">
             <a className="link quiet" href={`/${locale}/app`}>← {c.back}</a>
             {thread && <span className="counter">{fill(c.counter, { n: thread.messageCount, cap: thread.messageCap })}{thread.status === "closed" ? ` · ${d.app.closed}` : ""}</span>}
@@ -114,6 +117,10 @@ export default function ChatView({ locale, threadId }: { locale: Locale; threadI
                 : <a className="btn pill small" href={`/${locale}/credits`}>{d.app.getCredits}</a>)}
             </div>
           )}
+          </div>
+          <aside className="chat-aside">
+            <SkyCard locale={locale} date={todayIso()} compact />
+          </aside>
         </div>
       </main>
       <SiteFooter locale={locale} />

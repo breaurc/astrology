@@ -35,6 +35,25 @@ export interface Reading {
   text: string;
   narrator: "llm" | "template";
   disclaimer: string;
+  /** The day's planets over the natal chart, for the wheel; sent with the western reading only. */
+  sky?: Sky | null;
+}
+
+/** One body on the wheel; house is the natal whole-sign house (0 when the birth time is unknown). */
+export interface SkyPosition { body: string; longitude: number; sign: string; degree: number; retrograde: boolean; house: number; }
+/** A transiting planet aspecting a natal one; nature +1 harmonious, -1 challenging, 0 conjunction. */
+export interface SkyAspect { transit: string; natal: string; aspect: string; orb: number; nature: -1 | 0 | 1; }
+/** GET /api/sky?date= and Reading.sky: everything SkyWheel draws. Computed by the engine, never by the browser. */
+export interface Sky {
+  date: string;
+  timeKnown: boolean;
+  ascendant: number | null;
+  midheaven: number | null;
+  houseCusps: number[];
+  moonPhase: string;
+  natal: SkyPosition[];
+  transit: SkyPosition[];
+  aspects: SkyAspect[];
 }
 
 export interface CalendarDay {

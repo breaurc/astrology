@@ -4,6 +4,7 @@ import ro.astrosite.engine.astro.Angles;
 import ro.astrosite.engine.astro.Aspect;
 import ro.astrosite.engine.astro.NatalChart;
 import ro.astrosite.engine.astro.Planet;
+import ro.astrosite.engine.astro.Transits;
 import ro.astrosite.engine.astro.ZodiacSign;
 import ro.astrosite.engine.chinese.DayAlmanac;
 import ro.astrosite.engine.numerology.Numerology;
@@ -63,28 +64,24 @@ public final class ScoringRules {
     public static List<Factor> western(NatalChart natal, NatalChart transit) {
         List<Factor> out = new ArrayList<>();
 
-        // 1. transits to natal planets
-        for (Planet t : Planet.values()) {
-            double tl = transit.positions().get(t);
-            for (Planet n : Planet.values()) {
-                double nl = natal.positions().get(n);
-                Aspect a = Aspect.between(tl, nl, t.transitOrb());
-                if (a == null) continue;
-                double w = switch (a) {
-                    case TRINE -> 1.0;
-                    case SEXTILE -> 0.7;
-                    case SQUARE -> -0.9;
-                    case OPPOSITION -> -1.0;
-                    case CONJUNCTION -> benefic(t) ? 0.8 : -0.6;
-                };
-                w *= significance(t);
-                if (n.isLuminary() || n == Planet.VENUS || n == Planet.MARS) w *= 1.1;
-                Set<Category> cats = EnumSet.copyOf(PLANET_CATEGORIES.get(t));
-                cats.addAll(PLANET_CATEGORIES.get(n));
-                out.add(new Factor(WESTERN, "transit." + a.name().toLowerCase(), round(w),
-                        Map.of("transit", t.name(), "natal", n.name(),
-                                "orb", String.format("%.1f", a.orbOf(tl, nl))), cats));
-            }
+        // 1. transits to natal planets (the same list the chart wheel draws, see Transits)
+        for (Transits.TransitAspect ta : Transits.aspects(natal, transit)) {
+            Planet t = ta.transit(), n = ta.natal();
+            Aspect a = ta.aspect();
+            double w = switch (a) {
+                case TRINE -> 1.0;
+                case SEXTILE -> 0.7;
+                case SQUARE -> -0.9;
+                case OPPOSITION -> -1.0;
+                case CONJUNCTION -> benefic(t) ? 0.8 : -0.6;
+            };
+            w *= significance(t);
+            if (n.isLuminary() || n == Planet.VENUS || n == Planet.MARS) w *= 1.1;
+            Set<Category> cats = EnumSet.copyOf(PLANET_CATEGORIES.get(t));
+            cats.addAll(PLANET_CATEGORIES.get(n));
+            out.add(new Factor(WESTERN, "transit." + a.name().toLowerCase(), round(w),
+                    Map.of("transit", t.name(), "natal", n.name(),
+                            "orb", String.format("%.1f", ta.orb())), cats));
         }
 
         // 2. transiting Moon and Sun through natal houses (only when houses are known)

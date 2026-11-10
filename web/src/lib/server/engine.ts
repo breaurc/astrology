@@ -4,7 +4,7 @@
  * The functions are properties of one object so tests can replace them with fakes.
  */
 import type { Birth } from "../api";
-import type { CalendarDay, Reading, ReadingSystem, Reason, Verdict } from "../types";
+import type { CalendarDay, Reading, ReadingSystem, Reason, Sky, Verdict } from "../types";
 import { cfg } from "./config";
 import { requestContext } from "./context";
 
@@ -60,6 +60,8 @@ export const engine = {
 
   calendar: (birth: Birth, from: string, days: number, locale: string) =>
     post<{ from: string; days: CalendarDay[] }>("/calendar", { birth, from, days, locale }),
+
+  sky: (birth: Birth, date: string) => post<Sky>("/sky", { birth, date }),
 
   ask: (birth: Birth, question: string, date: string, locale: string) =>
     post<AskResult>("/ask", { birth, question, date, locale }),

@@ -8,6 +8,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -114,5 +115,48 @@ class ReadingApiTest {
         assertEquals(200, m.getStatusCode().value());
         List<Map<String, Object>> measurements = (List<Map<String, Object>>) m.getBody().get("measurements");
         assertTrue(((Number) measurements.get(0).get("value")).doubleValue() >= 1);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void skyCarriesBothChartsAndTheAspectsBehindTheWesternReading() {
+        Map<String, Object> sky = rest.postForEntity("/api/sky", Map.of("birth", BIRTH, "date", "2026-11-07"), Map.class).getBody();
+        assertEquals("2026-11-07", sky.get("date"));
+        assertEquals(true, sky.get("timeKnown"));
+        assertNotNull(sky.get("ascendant"));
+        assertEquals(12, ((List<?>) sky.get("houseCusps")).size());
+        List<Map<String, Object>> natal = (List<Map<String, Object>>) sky.get("natal");
+        List<Map<String, Object>> transit = (List<Map<String, Object>>) sky.get("transit");
+        assertEquals(10, natal.size());
+        assertEquals(10, transit.size());
+        Map<String, Object> sun = natal.stream().filter(p -> p.get("body").equals("SUN")).findFirst().orElseThrow();
+        assertEquals("PISCES", sun.get("sign"));
+        assertTrue((Integer) sun.get("house") >= 1 && (Integer) sun.get("house") <= 12);
+        List<Map<String, Object>> aspects = (List<Map<String, Object>>) sky.get("aspects");
+        assertFalse(aspects.isEmpty());
+        for (Map<String, Object> a : aspects) {
+            assertNotNull(a.get("transit"));
+            assertNotNull(a.get("natal"));
+            assertTrue(List.of("CONJUNCTION", "SEXTILE", "SQUARE", "TRINE", "OPPOSITION").contains(a.get("aspect")));
+            assertTrue(((Number) a.get("orb")).doubleValue() <= 3.0);
+            assertTrue(List.of(-1, 0, 1).contains(a.get("nature")));
+        }
+
+        // the western reading carries the same sky, the other systems none
+        Map<String, Object> western = rest.postForEntity("/api/reading",
+                Map.of("birth", BIRTH, "system", "WESTERN", "date", "2026-11-07", "locale", "en"), Map.class).getBody();
+        assertEquals(aspects, ((Map<String, Object>) western.get("sky")).get("aspects"));
+        Map<String, Object> numerology = rest.postForEntity("/api/reading",
+                Map.of("birth", BIRTH, "system", "NUMEROLOGY", "date", "2026-11-07", "locale", "en"), Map.class).getBody();
+        assertNull(numerology.get("sky"));
+
+        // unknown birth time: no angles, no houses; the wheel starts at 0 Aries
+        Map<String, Object> noTime = new HashMap<>(BIRTH);
+        noTime.remove("time");
+        Map<String, Object> flat = rest.postForEntity("/api/sky", Map.of("birth", noTime, "date", "2026-11-07"), Map.class).getBody();
+        assertEquals(false, flat.get("timeKnown"));
+        assertNull(flat.get("ascendant"));
+        assertTrue(((List<?>) flat.get("houseCusps")).isEmpty());
+        assertEquals(0, ((List<Map<String, Object>>) flat.get("natal")).get(0).get("house"));
     }
 }

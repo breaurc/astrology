@@ -80,6 +80,22 @@ export async function getCalendar(req: Request): Promise<Response> {
   }
 }
 
+// ---------------------------------------------------------------- sky wheel (user)
+
+/** GET /api/sky?date=yyyy-mm-dd — the day's planets over the natal chart for the wheel; account + birth data, no LLM call. */
+export async function getSky(req: Request): Promise<Response> {
+  const c = await caller(req);
+  const g = gate(c, "user") ?? needBirth(c);
+  if (g) return g;
+  const q = new URL(req.url).searchParams.get("date");
+  const date = q && /^\d{4}-\d{2}-\d{2}$/.test(q) && !Number.isNaN(Date.parse(q)) ? q : c.today;
+  try {
+    return json(await engine.sky(birthOf(c), date));
+  } catch (e) {
+    return engineFailure(e);
+  }
+}
+
 // ---------------------------------------------------------------- daily question (user)
 
 /** GET /api/questions?date=today → today's question (if any) and the history. */

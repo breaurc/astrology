@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RestController;
 import ro.astrosite.engine.api.dto.CalendarRequest;
 import ro.astrosite.engine.api.dto.ChatRequest;
 import ro.astrosite.engine.api.dto.ReadingRequest;
+import ro.astrosite.engine.api.dto.SkyRequest;
+import ro.astrosite.engine.api.dto.SkyResponse;
 import ro.astrosite.engine.ask.LlmClient;
 import ro.astrosite.engine.astro.BirthData;
 import ro.astrosite.engine.reading.CalendarService;
@@ -45,6 +47,14 @@ public class ReadingController {
         BirthData b = req.birth().toBirthData();
         LocalDate d = req.date() != null ? req.date() : today(b);
         return readings.reading(b, req.system(), d, locale(req.locale()));
+    }
+
+    /** The day's planets over the natal chart, for the wheel drawing (any day); no LLM call. */
+    @PostMapping("/sky")
+    public SkyResponse sky(@Valid @RequestBody SkyRequest req) {
+        BirthData b = req.birth().toBirthData();
+        LocalDate d = req.date() != null ? req.date() : today(b);
+        return readings.sky(b, d);
     }
 
     /** Day verdicts from transits; no LLM call. */
