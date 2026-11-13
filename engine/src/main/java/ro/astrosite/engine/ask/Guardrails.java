@@ -11,6 +11,24 @@ public final class Guardrails {
 
     public enum Flag { NONE, DISTRESS, MEDICAL, LEGAL, INVESTMENT, OFF_TOPIC }
 
+    /**
+     * Joins the fixed guardrail sentence and the model's text. When the model echoed the sentence (or its second
+     * half, the "about the timing:" part) at the start of its reply, that echo is dropped so it reads once.
+     */
+    public static String prefixed(String prefix, String text) {
+        String body = text == null ? "" : text.strip();
+        String[] parts = prefix.split("(?<=[.!?:])\\s+");
+        for (int i = 0; i < parts.length; i++) {
+            String tail = String.join(" ", java.util.Arrays.copyOfRange(parts, i, parts.length)).strip();
+            if (tail.isEmpty()) continue;
+            if (body.regionMatches(true, 0, tail, 0, tail.length())) {
+                body = body.substring(tail.length()).strip();
+                break;
+            }
+        }
+        return body.isEmpty() ? prefix : prefix + " " + body;
+    }
+
     private static final List<String> DISTRESS = List.of(
             "sinucid", "suicid", "sa mor", "vreau sa mor", "nu mai vreau sa traiesc", "sa ma omor", "imi fac rau",
             "sa ma ranesc", "kill myself", "suicide", "want to die", "end my life", "hurt myself", "self harm",

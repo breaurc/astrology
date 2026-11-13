@@ -68,9 +68,9 @@ public class ChatService {
         context.add(texts.label("fact.date", locale) + ": " + date);
         for (ReadingSystem s : ReadingSystem.values()) context.add(readings.factsText(s, facts, locale));
 
-        NarrationService.Result n = narration.chat(String.join("\n", context), category, score, verdict, reasons, history, message, locale);
+        NarrationService.Result n = narration.chat(String.join("\n", context), category, score, verdict, reasons, history, message, flag, locale);
         String text = n.text();
-        if (flag != Guardrails.Flag.NONE) text = texts.message("guardrail." + flag.name().toLowerCase(), locale) + " " + text;
+        if (flag != Guardrails.Flag.NONE) text = Guardrails.prefixed(texts.message("guardrail." + flag.name().toLowerCase(), locale), text);
         return new Turn(text, n.narrator(), flag, category, texts.message("disclaimer", locale), n.usage());
     }
 }

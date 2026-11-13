@@ -136,9 +136,11 @@ public class LlmClient {
         Object content = message.get("content");
         if (content == null || content.toString().isBlank()) {
             log.warn("OpenRouter ({}) returned empty content: finish_reason={}, usage={}", model, choice.get("finish_reason"), usage);
-            if (thinking && "length".equals(choice.get("finish_reason")) && reasoningTokens(usage) > 0) {
-                log.warn("OpenRouter ({}) spent max_tokens={} on hidden reasoning ({} tokens); retrying once without thinking "
-                        + "(raise ASTRO_LLM_REASONING_TOKENS if this repeats)", model, props.budget(maxTokens), reasoningTokens(usage));
+            // A thinking model sometimes stops inside its reasoning (finish_reason=stop) or runs out of budget there
+            // (finish_reason=length); either way nothing visible came back, so ask once more without thinking.
+            if (thinking && reasoningTokens(usage) > 0) {
+                log.warn("OpenRouter ({}) answered only in hidden reasoning ({} tokens, finish_reason={}, max_tokens={}); "
+                        + "retrying once without thinking", model, reasoningTokens(usage), choice.get("finish_reason"), props.budget(maxTokens));
                 return openRouter(model, system, messages, maxTokens, false);
             }
             return null;

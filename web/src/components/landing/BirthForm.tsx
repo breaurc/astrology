@@ -3,7 +3,6 @@
 import { useId } from "react";
 import { t, type Locale } from "@/lib/i18n";
 import type { Inputs } from "@/lib/inputs";
-import { SYSTEMS, type ReadingSystem } from "@/lib/types";
 import PlaceSearch from "../account/PlaceSearch";
 
 interface Props {
@@ -13,16 +12,14 @@ interface Props {
   onSubmit: () => void;
   busy?: boolean;
   errors?: string[];
-  /** The Western / Chinese / Numerology picker (landing only). */
-  systems?: boolean;
   submitLabel?: string;
   busyLabel?: string;
   /** A server-side message (quota, engine down) shown in the reserved line under the fields. */
   message?: string | null;
 }
 
-/** The one-step form (SPEC section 3.1): name, date, optional time, place, system picker. */
-export default function BirthForm({ locale, value, onChange, onSubmit, busy, errors = [], systems = true, submitLabel, busyLabel, message }: Props) {
+/** The one-step form (SPEC section 3.1): name, date, optional time, place. The system is chosen on the reading card. */
+export default function BirthForm({ locale, value, onChange, onSubmit, busy, errors = [], submitLabel, busyLabel, message }: Props) {
   const d = t(locale).landing;
   const id = useId();
   const set = (p: Partial<Inputs>) => onChange({ ...value, ...p });
@@ -35,13 +32,6 @@ export default function BirthForm({ locale, value, onChange, onSubmit, busy, err
 
   return (
     <form className="stack loose" onSubmit={(e) => { e.preventDefault(); onSubmit(); }} noValidate>
-      {systems && (
-        <div className="segmented" role="tablist" aria-label="System">
-          {SYSTEMS.map((s: ReadingSystem) => (
-            <button key={s} type="button" role="tab" aria-selected={value.system === s} onClick={() => set({ system: s })}>{d.systems[s]}</button>
-          ))}
-        </div>
-      )}
       <div className="form-grid">
         <div className={`field span2${bad("name")}`}>
           <label htmlFor={`${id}-name`}>{d.name}</label>

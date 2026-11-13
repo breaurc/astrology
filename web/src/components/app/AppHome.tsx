@@ -128,7 +128,7 @@ function BirthDataStep({ locale, onSaved }: { locale: Locale; onSaved: () => Pro
     <section className="card stack" style={{ maxWidth: 560 }}>
       <h2>{d.needBirthTitle}</h2>
       <p className="muted">{d.needBirth}</p>
-      <BirthForm locale={locale} value={inputs} onChange={(v) => { setInputs(v); setErrors([]); }} systems={false}
+      <BirthForm locale={locale} value={inputs} onChange={(v) => { setInputs(v); setErrors([]); }}
         onSubmit={() => save(inputs, consent)} busy={busy} errors={errors} submitLabel={d.saveBirth} busyLabel={d.saving} />
       {needConsent && (
         <label className="consent">

@@ -45,10 +45,10 @@ public class AskService {
         DayScores.Verdict verdict = DayScores.verdict(score);
         List<AskAnswer.Reason> reasons = reasons(scores, category, locale);
 
-        NarrationService.Result n = narration.answer(question, category, score, verdict, reasons, locale);
+        NarrationService.Result n = narration.answer(question, category, score, verdict, reasons, flag, locale);
         String text = n.text();
         if (flag != Guardrails.Flag.NONE) {
-            text = texts.message("guardrail." + flag.name().toLowerCase(), locale) + " " + text;
+            text = Guardrails.prefixed(texts.message("guardrail." + flag.name().toLowerCase(), locale), text);
         }
         return new AskAnswer(question, date, category, score, verdict, reasons, text, n.narrator(), flag,
                 texts.message("disclaimer", locale), scores.context(), n.usage());

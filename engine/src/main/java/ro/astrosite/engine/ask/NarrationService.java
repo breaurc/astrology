@@ -80,8 +80,9 @@ public class NarrationService {
 
     // ------------------------------------------------------------------ answer
 
+    /** @param flag the guardrail that will prefix the reply (MEDICAL, LEGAL, INVESTMENT) or NONE */
     public Result answer(String question, Category category, int score, DayScores.Verdict verdict,
-                         List<AskAnswer.Reason> reasons, Locale locale) {
+                         List<AskAnswer.Reason> reasons, Guardrails.Flag flag, Locale locale) {
         if (!llm.enabled()) {
             return counted(Mode.ANSWER, new Result(template.narrate(question, category, score, verdict, reasons, locale), "template", null));
         }
@@ -91,7 +92,7 @@ public class NarrationService {
                 + "Score: " + score + "/10 (" + verdict + ")\n"
                 + "Computed factors (strongest first):\n" + factorLines(reasons);
         try {
-            return counted(Mode.ANSWER, run(Mode.ANSWER, List.of(new LlmClient.Message("user", user)), props.maxTokensAnswer(), locale));
+            return counted(Mode.ANSWER, run(Mode.ANSWER, List.of(new LlmClient.Message("user", user)), props.maxTokensAnswer(), flag, locale));
         } catch (RuntimeException e) {
             throw new NarrationUnavailableException(e);
         }
@@ -102,9 +103,11 @@ public class NarrationService {
     /**
      * @param context  chart facts and today's sky, already localized, one fact per line
      * @param history  previous turns, oldest first (roles "user" / "assistant")
+     * @param flag     the guardrail that will prefix the reply (MEDICAL, LEGAL, INVESTMENT) or NONE
      */
     public Result chat(String context, Category category, int score, DayScores.Verdict verdict,
-                       List<AskAnswer.Reason> reasons, List<LlmClient.Message> history, String message, Locale locale) {
+                       List<AskAnswer.Reason> reasons, List<LlmClient.Message> history, String message,
+                       Guardrails.Flag flag, Locale locale) {
         if (!llm.enabled()) {
             return counted(Mode.CHAT, new Result(template.narrate(message, category, score, verdict, reasons, locale), "template", null));
         }
@@ -122,7 +125,7 @@ public class NarrationService {
         }
         messages.add(new LlmClient.Message("user", message));
         try {
-            return counted(Mode.CHAT, run(Mode.CHAT, messages, props.maxTokensChat(), locale));
+            return counted(Mode.CHAT, run(Mode.CHAT, messages, props.maxTokensChat(), flag, locale));
         } catch (RuntimeException e) {
             throw new NarrationUnavailableException(e);
         }
@@ -131,11 +134,29 @@ public class NarrationService {
     // ------------------------------------------------------------------ internals
 
     private Result run(Mode mode, List<LlmClient.Message> messages, int maxTokens, Locale locale) {
-        LlmClient.Completion c = llm.complete(prompts.system(mode, locale), messages, maxTokens);
+        return run(mode, messages, maxTokens, Guardrails.Flag.NONE, locale);
+    }
+
+    private Result run(Mode mode, List<LlmClient.Message> messages, int maxTokens, Guardrails.Flag flag, Locale locale) {
+        String system = prompts.system(mode, locale);
+        String note = guardrailNote(texts, flag, locale);
+        if (note != null) system = system + "\n" + note;
+        LlmClient.Completion c = llm.complete(system, messages, maxTokens);
         record(c);
         log.info("narration mode={} model={} tokens_in={} tokens_out={} latency_ms={}",
                 mode, c.model(), c.tokensIn(), c.tokensOut(), c.latencyMs());
         return new Result(c.text(), "llm", new Usage(c.model(), c.tokensIn(), c.tokensOut(), c.latencyMs()));
+    }
+
+    /**
+     * The engine puts a fixed sentence in front of medical, legal and investment replies (ChatService, AskService).
+     * The model is told so, otherwise it opens with its own version of the same disclaimer and the reply says it twice.
+     * Null when no sentence will be prefixed.
+     */
+    static String guardrailNote(FactorTexts texts, Guardrails.Flag flag, Locale locale) {
+        if (flag != Guardrails.Flag.MEDICAL && flag != Guardrails.Flag.LEGAL && flag != Guardrails.Flag.INVESTMENT) return null;
+        String topic = texts.message("guardrail.topic." + flag.name().toLowerCase(), locale);
+        return texts.message("guardrail.prefixed", locale, topic);
     }
 
     /** Counts narrations by mode and narrator, and tokens by mode (actuator: narration.calls, narration.tokens). */
