@@ -16,6 +16,7 @@ const dict = {
       email: "Email", password: "Password", name: "Name",
       or: "or with email",
       passwordHint: "At least 8 characters",
+      passwordConfirm: "Confirm password",
       register: "Create account", login: "Sign in",
       toLogin: "Already have an account? Sign in",
       toRegister: "New here? Create an account",
@@ -30,6 +31,7 @@ const dict = {
       errors: {
         email_taken: "There is already an account with this email. Sign in instead.",
         invalid_credentials: "Email or password is wrong.",
+        password_mismatch: "The two passwords do not match.",
         email_unverified: "This email is not verified yet. Open the link we sent you, or request a new one.",
         too_many_attempts: "Too many attempts. Try again in 15 minutes.",
         validation: "Please check the highlighted fields.",
@@ -104,6 +106,7 @@ const dict = {
       email: "Email", password: "Parolă", name: "Nume",
       or: "sau cu email",
       passwordHint: "Cel puțin 8 caractere",
+      passwordConfirm: "Confirmă parola",
       register: "Creează cont", login: "Intră în cont",
       toLogin: "Ai deja cont? Intră în cont",
       toRegister: "Ești nou? Creează un cont",
@@ -118,6 +121,7 @@ const dict = {
       errors: {
         email_taken: "Există deja un cont cu acest email. Intră în cont.",
         invalid_credentials: "Emailul sau parola nu sunt corecte.",
+        password_mismatch: "Cele două parole nu coincid.",
         email_unverified: "Emailul nu e verificat încă. Deschide linkul trimis sau cere unul nou.",
         too_many_attempts: "Prea multe încercări. Încearcă din nou peste 15 minute.",
         validation: "Verifică câmpurile marcate.",

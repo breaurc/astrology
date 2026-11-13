@@ -26,6 +26,7 @@ export default function AuthPanel({ locale, next, initialMode = "register", defa
   const [providers, setProviders] = useState<{ google: boolean; facebook: boolean } | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -56,6 +57,11 @@ export default function AuthPanel({ locale, next, initialMode = "register", defa
     if (register && !consent) {
       setError("consent");
       setFields(["consent"]);
+      return;
+    }
+    if (register && password !== password2) {
+      setError("password_mismatch");
+      setFields(["password2"]);
       return;
     }
     setBusy(true);
@@ -129,6 +135,13 @@ export default function AuthPanel({ locale, next, initialMode = "register", defa
           <input id={`${id}-pw`} type="password" autoComplete={register ? "new-password" : "current-password"} minLength={register ? 8 : undefined}
             value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
+        {register && (
+          <div className={`field${fields.includes("password2") ? " invalid" : ""}`}>
+            <label htmlFor={`${id}-pw2`}>{a.passwordConfirm}</label>
+            <input id={`${id}-pw2`} type="password" autoComplete="new-password" minLength={8}
+              value={password2} onChange={(e) => setPassword2(e.target.value)} required />
+          </div>
+        )}
         {error && (
           <div className="alert" role="alert">
             {error === "consent" ? a.consentNeeded : errorText(error)}
@@ -143,7 +156,7 @@ export default function AuthPanel({ locale, next, initialMode = "register", defa
         <ConsentText locale={locale} />
       </label>
 
-      <button type="button" className="link center" onClick={() => { setMode(register ? "login" : "register"); setError(null); setFields([]); }}>
+      <button type="button" className="link center" onClick={() => { setMode(register ? "login" : "register"); setPassword2(""); setError(null); setFields([]); }}>
         {register ? a.toLogin : a.toRegister}
       </button>
     </div>
